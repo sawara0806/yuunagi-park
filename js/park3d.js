@@ -210,6 +210,16 @@ const INPUT = { fwd: false, back: false, sLeft: false, sRight: false, tLeft: fal
 let bobT = 0, bobAmp = 0, stepT = 0;
 let SEATED = false;
 let eyeBase = 1.55;
+let lastInputT = 0;   // 着席UIの自動フェード用（何か操作があるたび更新）
+
+/* 着席中は正面180°(南=π ±90°)だけ見回せる。yawとπの差を[-π,π]に正規化し、
+   [-π/2, +π/2]にクランプして返す純関数 */
+function clampSeatedYaw(yaw) {
+  let diff = yaw - Math.PI;
+  diff = ((diff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+  diff = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, diff));
+  return Math.PI + diff;
+}
 
 /* 座席アンカー（P5）: ベンチの座面中心。x=1.6のベンチは寝ている猫(catSleep、buildSceneの
    `x: 1.6, z: L.BENCH_Z - 0.02` を参照)が中央に乗っているため、その左隣(x=1.05)に座る。
@@ -231,10 +241,14 @@ function nearestSeat() {
 function sitDown(seat) {
   SEATED = true;
   CAM.x = seat.x; CAM.z = seat.z;
+  CAM.yaw = Math.PI;
+  eyeBase = CAM.eye = 1.05;
   AUDIO3.seated = true;
+  lastInputT = simT;
 }
 function standUp() {
   SEATED = false;
+  eyeBase = CAM.eye = 1.55;
   AUDIO3.seated = false;
 }
 function toggleSit() {
@@ -244,14 +258,10 @@ function toggleSit() {
 }
 
 function movePlayer(dt) {
-  /* eyeBase は座り中/立位の目標値へ毎フレームイージング（急だと酔うので約0.5秒） */
-  const eyeTarget = SEATED ? 1.05 : 1.55;
-  eyeBase += (eyeTarget - eyeBase) * Math.min(1, dt * 5);
   if (SEATED) {
-    /* 広場向き(yaw = π)へゆっくり回頭。見回し(hor)はそのまま自由 */
-    let diff = Math.PI - CAM.yaw;
-    diff = ((diff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-    CAM.yaw += diff * Math.min(1, dt * 4);
+    /* Q/Eでも旋回できる（見回し手段）。前方180°(南±90°)にクランプする */
+    if (INPUT.tLeft) { CAM.yaw -= 1.8 * dt; CAM.yaw = clampSeatedYaw(CAM.yaw); }
+    if (INPUT.tRight) { CAM.yaw += 1.8 * dt; CAM.yaw = clampSeatedYaw(CAM.yaw); }
     CAM.eye = eyeBase;
     if (INPUT.fwd || INPUT.back || INPUT.sLeft || INPUT.sRight) standUp();
     return;
@@ -323,6 +333,8 @@ function updateSeatUI() {
   const { dist } = nearestSeat();
   const active = SEATED || dist <= 1.4;
   if (!active) { hideSeatUI(); return; }
+  /* 着席中は4秒操作がなければ案内を隠す（立位中はフェードしない） */
+  if (SEATED && simT - lastInputT > 4) { hideSeatUI(); return; }
   const label = SEATED ? "たつ" : "すわる";
   const text = SEATED ? "スペース ─ たちあがる" : "スペース ─ ベンチに こしかける";
   if (!hintShown) { hintEl.classList.add("show"); hintShown = true; }
@@ -744,6 +756,7 @@ const KEYMAP = {
   q: "tLeft", Q: "tLeft", e: "tRight", E: "tRight",
 };
 window.addEventListener("keydown", ev => {
+  lastInputT = simT;
   const k = KEYMAP[ev.key];
   if (k) { INPUT[k] = true; ev.preventDefault(); }
   if (ev.key === " " && INSIDE) { ev.preventDefault(); toggleSit(); }
@@ -770,22 +783,27 @@ screenCvs.addEventListener("click", () => {
 });
 document.addEventListener("mousemove", ev => {
   if (!locked()) return;
+  lastInputT = simT;
   CAM.yaw += ev.movementX * 0.0032;
+  if (SEATED) CAM.yaw = clampSeatedYaw(CAM.yaw);
   CAM.hor = clampHor(CAM.hor - ev.movementY * 0.4);
 });
 
 let lookPt = null;
 screenCvs.addEventListener("pointerdown", ev => {
+  lastInputT = simT;
   if (locked()) return;
   lookPt = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
   screenCvs.setPointerCapture(ev.pointerId);
 });
 screenCvs.addEventListener("pointermove", ev => {
   if (locked() || !lookPt || ev.pointerId !== lookPt.id) return;
+  lastInputT = simT;
   const dx = ev.clientX - lookPt.x, dy = ev.clientY - lookPt.y;
   lookPt.x = ev.clientX; lookPt.y = ev.clientY;
   /* 掴んだ景色が指についてくる向き（従来と逆） */
   CAM.yaw -= dx * 0.0042;
+  if (SEATED) CAM.yaw = clampSeatedYaw(CAM.yaw);
   CAM.hor = clampHor(CAM.hor + dy * 0.5);
 });
 const endLook = ev => { if (lookPt && ev.pointerId === lookPt.id) lookPt = null; };
@@ -949,3 +967,4 @@ window.PARK = {
   },
   isSeated: () => SEATED,
 };
+PARK.clampSeatedYaw = clampSeatedYaw;   // 検証用に外から呼べるようにする
