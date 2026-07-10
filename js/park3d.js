@@ -208,8 +208,54 @@ function buildScene() {
 const CAM = { x: 0, z: 5.8, yaw: 0, eye: 1.55, hor: R3.HOR_BASE };
 const INPUT = { fwd: false, back: false, sLeft: false, sRight: false, tLeft: false, tRight: false };
 let bobT = 0, bobAmp = 0, stepT = 0;
+let SEATED = false;
+let eyeBase = 1.55;
+
+/* 座席アンカー（P5）: ベンチの座面中心。x=1.6のベンチは寝ている猫(catSleep、buildSceneの
+   `x: 1.6, z: L.BENCH_Z - 0.02` を参照)が中央に乗っているため、その左隣(x=1.05)に座る。
+   猫の座標を動かしたらここも合わせて直すこと */
+const BENCH_SEATS = L.BENCHES_X.map(bx => ({
+  x: bx === 1.6 ? 1.05 : bx,
+  z: L.BENCH_Z + 0.09,
+}));
+
+function nearestSeat() {
+  let seat = null, dist = Infinity;
+  for (const s of BENCH_SEATS) {
+    const d = Math.hypot(CAM.x - s.x, CAM.z - s.z);
+    if (d < dist) { dist = d; seat = s; }
+  }
+  return { seat, dist };
+}
+
+function sitDown(seat) {
+  SEATED = true;
+  CAM.x = seat.x; CAM.z = seat.z;
+  AUDIO3.seated = true;
+}
+function standUp() {
+  SEATED = false;
+  AUDIO3.seated = false;
+}
+function toggleSit() {
+  if (SEATED) { standUp(); return; }
+  const { seat, dist } = nearestSeat();
+  if (seat && dist <= 1.4) sitDown(seat);
+}
 
 function movePlayer(dt) {
+  /* eyeBase は座り中/立位の目標値へ毎フレームイージング（急だと酔うので約0.5秒） */
+  const eyeTarget = SEATED ? 1.05 : 1.55;
+  eyeBase += (eyeTarget - eyeBase) * Math.min(1, dt * 5);
+  if (SEATED) {
+    /* 広場向き(yaw = π)へゆっくり回頭。見回し(hor)はそのまま自由 */
+    let diff = Math.PI - CAM.yaw;
+    diff = ((diff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    CAM.yaw += diff * Math.min(1, dt * 4);
+    CAM.eye = eyeBase;
+    if (INPUT.fwd || INPUT.back || INPUT.sLeft || INPUT.sRight) standUp();
+    return;
+  }
   if (INPUT.tLeft) CAM.yaw -= 1.8 * dt;
   if (INPUT.tRight) CAM.yaw += 1.8 * dt;
   const mvF = (INPUT.fwd ? 1 : 0) - (INPUT.back ? 1 : 0);
@@ -231,7 +277,7 @@ function movePlayer(dt) {
     /* 立ち止まったら揺れの振幅だけをすっと減衰させる（揺れ残りなし） */
     bobAmp = Math.max(0, bobAmp - dt * 7);
   }
-  CAM.eye = 1.55 + Math.sin(bobT) * 0.035 * bobAmp;
+  CAM.eye = eyeBase + Math.sin(bobT) * 0.035 * bobAmp;
   for (const c of COLLIDERS) {
     const dx = CAM.x - c.x, dz = CAM.z - c.z;
     const d = Math.hypot(dx, dz);
@@ -258,6 +304,31 @@ function leavePark() {
   /* 次の入園に備えて入口へ戻しておく */
   CAM.x = 0; CAM.z = 5.8; CAM.yaw = 0; CAM.hor = R3.HOR_BASE;
   INPUT.fwd = INPUT.back = INPUT.sLeft = INPUT.sRight = false;
+  standUp();
+  eyeBase = CAM.eye = 1.55;
+  hideSeatUI();
+}
+
+/* ---------- 着席UI（P5）: 未使用だった #hint を流用 + モバイル用 #sit-btn ---------- */
+const hintEl = document.getElementById("hint");
+const sitBtn = document.getElementById("sit-btn");
+let hintShown = false, hintTextNow = "", sitBtnShown = false;
+
+function hideSeatUI() {
+  if (hintShown) { hintEl.classList.remove("show"); hintShown = false; }
+  if (sitBtnShown) { sitBtn.classList.remove("visible"); sitBtnShown = false; }
+}
+
+function updateSeatUI() {
+  const { dist } = nearestSeat();
+  const active = SEATED || dist <= 1.4;
+  if (!active) { hideSeatUI(); return; }
+  const label = SEATED ? "たつ" : "すわる";
+  const text = SEATED ? "スペース ─ たちあがる" : "スペース ─ ベンチに こしかける";
+  if (!hintShown) { hintEl.classList.add("show"); hintShown = true; }
+  if (hintTextNow !== text) { hintEl.textContent = text; hintTextNow = text; }
+  if (!sitBtnShown) { sitBtn.classList.add("visible"); sitBtnShown = true; }
+  if (sitBtn.textContent !== label) sitBtn.textContent = label;
 }
 
 /* ネコ「ニャー」のノードグラフ本体（thisに依存しない純関数・Offline検証用に外出し）
@@ -320,7 +391,7 @@ function meowInto(c, dst, t0, v) {
 
 /* ---------- 環境音（Web Audio合成・すべて位置とパンつき） ---------- */
 const AUDIO3 = {
-  ctx: null, master: null, on: false,
+  ctx: null, master: null, on: false, seated: false,
   birdT: 2, cooT: 5, bulbulT: 9, semiT: 14, crowT: 20, carT: 16,
   higuT: 7, cricketT: 4, catT: 22, meowCool: 0,
   init() {
@@ -376,8 +447,11 @@ const AUDIO3 = {
       const d = Math.hypot(tr.x - CAM.x, tr.z - CAM.z);
       treeNear = Math.max(treeNear, 1 - Math.min(1, d / 16));
     }
-    this.windG.gain.setTargetAtTime(0.02 + w * 0.045, now, 0.35);
-    this.leafG.gain.setTargetAtTime(w * w * (0.02 + treeNear * 0.055), now, 0.25);
+    /* 着席中は環境音をわずかに濃くする（風・葉ずれ約1.25倍、鳥系の間隔を短く） */
+    const boost = this.seated ? 1.25 : 1;
+    const birdBoost = this.seated ? 0.75 : 1;
+    this.windG.gain.setTargetAtTime((0.02 + w * 0.045) * boost, now, 0.35);
+    this.leafG.gain.setTargetAtTime(w * w * (0.02 + treeNear * 0.055) * boost, now, 0.25);
 
     /* ---- 出来事のスケジューラ（時間帯と季節でゲート） ---- */
     const M = ENV.mode, S = ENV.season;
@@ -385,20 +459,20 @@ const AUDIO3 = {
     const pickTree = () => all[(Math.random() * all.length) | 0];
     this.birdT -= dt;
     if (this.birdT <= 0) {
-      this.birdT = 2.2 + Math.random() * 4;
+      this.birdT = (2.2 + Math.random() * 4) * birdBoost;
       if (M !== "night" && Math.random() < (daytime ? 0.7 : 0.4)) {
         const tr = pickTree(); this.chirp(tr.x, tr.z);
       }
     }
     this.cooT -= dt;
     if (this.cooT <= 0) {
-      this.cooT = 6 + Math.random() * 9;
+      this.cooT = (6 + Math.random() * 9) * birdBoost;
       const p = PIGEONS[(Math.random() * PIGEONS.length) | 0];
       if (p && daytime) this.coo(p.x, p.z);
     }
     this.bulbulT -= dt;
     if (this.bulbulT <= 0) {
-      this.bulbulT = 12 + Math.random() * 16;
+      this.bulbulT = (12 + Math.random() * 16) * birdBoost;
       if (M !== "night") { const tr = pickTree(); this.hiyo(tr.x, tr.z); }
     }
     this.semiT -= dt;
@@ -672,6 +746,7 @@ const KEYMAP = {
 window.addEventListener("keydown", ev => {
   const k = KEYMAP[ev.key];
   if (k) { INPUT[k] = true; ev.preventDefault(); }
+  if (ev.key === " " && INSIDE) { ev.preventDefault(); toggleSit(); }
 });
 window.addEventListener("keyup", ev => {
   const k = KEYMAP[ev.key];
@@ -728,6 +803,8 @@ for (const [id, key] of [["walk-fwd", "fwd"], ["walk-back", "back"]]) {
   el.addEventListener("pointercancel", off);
   el.addEventListener("pointerleave", off);
 }
+/* 着席ボタン（タッチ端末用。ベンチ圏内か座り中のみ表示） */
+sitBtn.addEventListener("pointerdown", ev => { ev.preventDefault(); toggleSit(); });
 
 /* ---------- 画面フィット ---------- */
 function fitScreen() {
@@ -802,7 +879,7 @@ function updateAnim(dt) {
 /* ---------- メインループ ---------- */
 let last = 0;
 function tick(dt) {
-  if (INSIDE) movePlayer(dt);
+  if (INSIDE) { movePlayer(dt); updateSeatUI(); }
   const wind = updateAnim(dt);
   AUDIO3.update(dt, wind);
   R3.render(CAM, WALLS, BOXES,
@@ -870,4 +947,5 @@ window.PARK = {
     dt = dt || 1 / 60;
     for (let i = 0; i < (n || 1); i++) tick(dt);
   },
+  isSeated: () => SEATED,
 };

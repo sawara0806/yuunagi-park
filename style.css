@@ -89,3 +89,16 @@ body {
 @media (pointer: coarse) {
   #walkpad { display: flex; }
 }
+
+/* ---- 着席ボタン（ベンチ圏内・座り中のみ .visible で表示） ---- */
+#sit-btn {
+  position: fixed; right: 16px; bottom: 64px; z-index: 20;
+  display: none;
+  width: 62px; height: 62px; border-radius: 50%;
+  font-family: inherit; font-size: .82rem; letter-spacing: .05em; color: #f0ede2;
+  background: rgba(20, 28, 36, .45);
+  border: 1px solid rgba(240, 237, 226, .4);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#sit-btn.visible { display: block; }
+#sit-btn:active { background: rgba(240, 237, 226, .35); }
