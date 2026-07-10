@@ -1,0 +1,91 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%; overflow: hidden; background: #101418;
+  /* ドラッグ見回しがブラウザの「戻る/更新」ジェスチャーにならないように */
+  overscroll-behavior: none;
+  touch-action: none;
+}
+body {
+  font-family: "DotGothic16", "Hiragino Maru Gothic ProN", sans-serif;
+  display: flex; justify-content: center; align-items: center;
+}
+
+#screen {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* ---- 入園ゲート ---- */
+#entrance {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.6rem;
+  background: linear-gradient(180deg, #1c2434 0%, #2c3a48 55%, #3c4e50 100%);
+  color: #e8e4d8; text-align: center; padding: 2rem;
+  transition: opacity 2.2s ease;
+}
+#entrance.closed { opacity: 0; pointer-events: none; }
+#entrance h1 {
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  letter-spacing: .4em; text-indent: .4em; font-weight: 400;
+  text-shadow: 3px 3px 0 #101820;
+}
+#entrance p { font-size: clamp(.8rem, 2.4vw, 1rem); line-height: 2.3; opacity: .88; }
+#entrance .controls { font-size: clamp(.7rem, 2vw, .85rem); opacity: .6; line-height: 2; }
+#enter-btn {
+  margin-top: .6rem; padding: .9em 2.8em;
+  font-family: inherit; font-size: 1rem; letter-spacing: .35em; text-indent: .35em;
+  color: #e8e4d8; background: transparent;
+  border: 2px solid #e8e4d8; border-radius: 2px; cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(16, 24, 32, .8);
+  transition: background .3s, color .3s;
+}
+#enter-btn:hover { background: #e8e4d8; color: #1c2434; }
+
+/* ---- ヒント ---- */
+#hint {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 15;
+  color: rgba(248, 246, 238, .92); font-size: clamp(.75rem, 2.2vw, .9rem); letter-spacing: .12em;
+  text-shadow: 2px 2px 0 rgba(10, 16, 24, .7);
+  pointer-events: none; opacity: 0; transition: opacity .9s;
+}
+#hint.show { opacity: 1; }
+
+/* ---- 控えめなUI ---- */
+#ui {
+  position: fixed; right: 12px; bottom: 12px; z-index: 20;
+  display: flex; gap: 6px;
+  opacity: .3; transition: opacity .5s;
+}
+#ui:hover, #ui:focus-within { opacity: .95; }
+#ui button {
+  font-family: inherit; font-size: .78rem; color: #f0ede2;
+  background: rgba(20, 28, 36, .5); border: 1px solid rgba(240, 237, 226, .35);
+  border-radius: 2px; padding: .4em .9em; cursor: pointer;
+  letter-spacing: .1em;
+}
+#ui button.active { background: rgba(240, 237, 226, .4); color: #14202a; }
+
+@media (max-width: 640px) {
+  #hint { bottom: 72px; }
+  #ui { opacity: .55; }
+}
+
+/* ---- 歩行ボタン（タッチ端末のみ表示） ---- */
+#walkpad {
+  position: fixed; left: 16px; bottom: 20px; z-index: 20;
+  display: none; flex-direction: column; gap: 12px;
+}
+#walkpad button {
+  width: 62px; height: 62px; border-radius: 50%;
+  font-size: 1.2rem; color: #f0ede2;
+  background: rgba(20, 28, 36, .45);
+  border: 1px solid rgba(240, 237, 226, .4);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#walkpad button:active { background: rgba(240, 237, 226, .35); }
+@media (pointer: coarse) {
+  #walkpad { display: flex; }
+}

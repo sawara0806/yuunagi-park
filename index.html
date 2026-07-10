@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ゆうなぎ公園 — あるく、こしかける、なにもしない</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="screen" width="480" height="270"></canvas>
+
+<div id="entrance">
+  <h1>ゆうなぎ公園</h1>
+  <p>ここには 通知も ニュースも タイムラインも ありません。<br>
+     ちいさな 街かどの公園です。<br>
+     木かげの ベンチまで、ゆっくり 歩いてみてください。</p>
+  <div class="controls">
+    ↑↓ で あるく ／ ←→ で よこあるき ／ クリックで マウス見まわしの ON・OFF<br>
+    スマホは 左下のボタンで あるく・画面ドラッグで 見まわす<br>
+    かえるときは 南の門から どうぞ
+  </div>
+  <button id="enter-btn">入園する</button>
+</div>
+
+<div id="hint"></div>
+
+<div id="walkpad">
+  <button id="walk-fwd" aria-label="すすむ">▲</button>
+  <button id="walk-back" aria-label="さがる">▼</button>
+</div>
+
+<div id="ui">
+  <button data-season="spring">春</button>
+  <button data-season="summer">夏</button>
+  <button data-season="autumn">秋</button>
+  <button data-season="winter">冬</button>
+  <button data-mode="morning">朝</button>
+  <button data-mode="day">昼</button>
+  <button data-mode="dusk">夕</button>
+  <button data-mode="night">夜</button>
+  <button id="sound-btn">音</button>
+</div>
+
+<script src="js/assets3d.js"></script>
+<script src="js/render3d.js"></script>
+<script src="js/park3d.js"></script>
+</body>
+</html>
