@@ -228,6 +228,7 @@ const BENCH_SEATS = L.BENCHES_X.map(bx => ({
   x: bx === 1.6 ? 1.05 : bx,
   z: L.BENCH_Z + 0.09,
 }));
+const SEAT_RANGE = 2.0;   // この距離(m)以内で着席可・着席UI表示
 
 function nearestSeat() {
   let seat = null, dist = Infinity;
@@ -242,6 +243,7 @@ function sitDown(seat) {
   SEATED = true;
   CAM.x = seat.x; CAM.z = seat.z;
   CAM.yaw = Math.PI;
+  CAM.hor = R3.HOR_BASE;
   eyeBase = CAM.eye = 1.05;
   AUDIO3.seated = true;
   lastInputT = simT;
@@ -254,7 +256,7 @@ function standUp() {
 function toggleSit() {
   if (SEATED) { standUp(); return; }
   const { seat, dist } = nearestSeat();
-  if (seat && dist <= 1.4) sitDown(seat);
+  if (seat && dist <= SEAT_RANGE) sitDown(seat);
 }
 
 function movePlayer(dt) {
@@ -331,7 +333,7 @@ function hideSeatUI() {
 
 function updateSeatUI() {
   const { dist } = nearestSeat();
-  const active = SEATED || dist <= 1.4;
+  const active = SEATED || dist <= SEAT_RANGE;
   if (!active) { hideSeatUI(); return; }
   /* 着席中は4秒操作がなければ案内を隠す（立位中はフェードしない） */
   if (SEATED && simT - lastInputT > 4) { hideSeatUI(); return; }
