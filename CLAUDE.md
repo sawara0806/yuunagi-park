@@ -208,8 +208,11 @@ Step 1 に畳んでもよい。
 
 ### ~~P4: 時間帯 + 季節~~（実装済み 2026-07-08）
 仕組み（今後の調整の手がかり）:
-- `ENV = { season, mode }`（assets3d.js冒頭）。初期値は実際の月と時刻。
-  UIボタンで切替 → `rebuildWorld()` が全素材とシーンを再生成（実測 約0.7秒）
+- `ENV = { season, mode }`（assets3d.js冒頭）。**入園ボタンを押した瞬間の実際の
+  月と時刻で決まる**（envFromDate。タイトル放置後や再入園でもその時点の値になる）。
+  切替UIボタンは2026-07-10に撤去（ユーザー判断: 実時間に即すのが本義）。
+  デバッグ用に `PARK.setEnv(season, mode)` と `PARK.envFromDate(date)` は残してある。
+  変更時は `rebuildWorld()` が全素材とシーンを再生成（実測 約0.7秒）
 - **時間帯 = グレーディング**: `sheetA.px/rect` が `gradeColor()`（MODE_GRADE）を通す。
   発光（灯り・点いた窓）は `pxRaw/rectRaw` でバイパス。
   空だけは `GRADE_BYPASS` でモード専用の色を直接描く（朝焼け・夕日・星と三日月）

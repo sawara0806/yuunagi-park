@@ -24,10 +24,6 @@ function rebuildWorld() {
   R3.skyTopFill = SKY_TOP_FILL[ENV.mode];
   LEAVES = [];
   buildScene();
-  document.querySelectorAll("#ui [data-season]").forEach(b =>
-    b.classList.toggle("active", b.dataset.season === ENV.season));
-  document.querySelectorAll("#ui [data-mode]").forEach(b =>
-    b.classList.toggle("active", b.dataset.mode === ENV.mode));
 }
 
 /* 長い壁は短冊に分割して登録する。
@@ -775,12 +771,20 @@ function frame(now) {
 }
 
 /* ---------- 起動（季節は今の月・時間帯は今の時刻から） ---------- */
+/* Dateから{season, mode}を決める。入園時にも同じ判定で再取得する */
+function envFromDate(d) {
+  const mo = d.getMonth() + 1, h = d.getHours();
+  return {
+    season: mo >= 3 && mo <= 5 ? "spring" : mo >= 6 && mo <= 8 ? "summer"
+          : mo >= 9 && mo <= 11 ? "autumn" : "winter",
+    mode: h >= 5 && h < 10 ? "morning" : h >= 10 && h < 16 ? "day"
+        : h >= 16 && h < 19 ? "dusk" : "night",
+  };
+}
 (function initialEnv() {
-  const d = new Date(), mo = d.getMonth() + 1, h = d.getHours();
-  ENV.season = mo >= 3 && mo <= 5 ? "spring" : mo >= 6 && mo <= 8 ? "summer"
-             : mo >= 9 && mo <= 11 ? "autumn" : "winter";
-  ENV.mode = h >= 5 && h < 10 ? "morning" : h >= 10 && h < 16 ? "day"
-           : h >= 16 && h < 19 ? "dusk" : "night";
+  const env = envFromDate(new Date());
+  ENV.season = env.season;
+  ENV.mode = env.mode;
 })();
 R3.init(screenCvs);
 rebuildWorld();
@@ -788,23 +792,13 @@ fitScreen();
 last = performance.now();
 requestAnimationFrame(frame);
 
-/* 季節・時間帯の切り替えUI */
-document.querySelectorAll("#ui [data-season]").forEach(b =>
-  b.addEventListener("click", () => {
-    if (ENV.season === b.dataset.season) return;
-    ENV.season = b.dataset.season;
-    rebuildWorld();
-  }));
-document.querySelectorAll("#ui [data-mode]").forEach(b =>
-  b.addEventListener("click", () => {
-    if (ENV.mode === b.dataset.mode) return;
-    const toDusk = b.dataset.mode === "dusk";
-    ENV.mode = b.dataset.mode;
-    rebuildWorld();
-    if (toDusk) AUDIO3.chime();   // 17時のチャイム
-  }));
-
 document.getElementById("enter-btn").addEventListener("click", () => {
+  const env = envFromDate(new Date());
+  if (env.season !== ENV.season || env.mode !== ENV.mode) {
+    ENV.season = env.season;
+    ENV.mode = env.mode;
+    rebuildWorld();
+  }
   document.getElementById("entrance").classList.add("closed");
   INSIDE = true;
   try {
@@ -821,7 +815,7 @@ document.getElementById("sound-btn").addEventListener("click", () => {
 
 /* 検証・デバッグ用フック */
 window.PARK = {
-  cam: CAM, input: INPUT, audio: AUDIO3, env: ENV,
+  cam: CAM, input: INPUT, audio: AUDIO3, env: ENV, envFromDate,
   setEnv(season, mode) {
     if (season) ENV.season = season;
     if (mode) ENV.mode = mode;
