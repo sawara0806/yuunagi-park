@@ -260,6 +260,64 @@ function leavePark() {
   INPUT.fwd = INPUT.back = INPUT.sLeft = INPUT.sRight = false;
 }
 
+/* ネコ「ニャー」のノードグラフ本体（thisに依存しない純関数・Offline検証用に外出し）
+   c: AudioContext, dst: 接続先, t0: 開始時刻, v: { f0, len } のバリエーション */
+function meowInto(c, dst, t0, v) {
+  /* Offline実測: 0.5だとピーク0.267で鳥(0.03-0.055)の5倍になる。0.17でピーク約0.09 */
+  const PEAK = 0.17;
+  const len = 0.7 * v.len;
+  const stopAt = t0 + len + 0.1;
+
+  /* 声帯（のこぎり波・ピッチ変化＋ビブラート） */
+  const o = c.createOscillator(); o.type = "sawtooth";
+  o.frequency.setValueAtTime(470 * v.f0, t0);
+  o.frequency.exponentialRampToValueAtTime(720 * v.f0, t0 + len * 0.3);
+  o.frequency.exponentialRampToValueAtTime(620 * v.f0, t0 + len * 0.6);
+  o.frequency.exponentialRampToValueAtTime(340 * v.f0, t0 + len);
+  const vib = c.createOscillator(); vib.frequency.value = 5.2;
+  const vibG = c.createGain(); vibG.gain.value = 10;
+  vib.connect(vibG).connect(o.frequency);
+
+  /* フォルマント2本（並列バンドパス＝口の開閉で母音が変わる） */
+  const f1 = c.createBiquadFilter(); f1.type = "bandpass"; f1.Q.value = 9;
+  f1.frequency.setValueAtTime(380, t0);
+  f1.frequency.exponentialRampToValueAtTime(950, t0 + len * 0.3);
+  f1.frequency.exponentialRampToValueAtTime(800, t0 + len * 0.65);
+  f1.frequency.exponentialRampToValueAtTime(420, t0 + len);
+  const f1g = c.createGain(); f1g.gain.value = 1.0;
+
+  const f2 = c.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 11;
+  f2.frequency.setValueAtTime(1150, t0);
+  f2.frequency.exponentialRampToValueAtTime(2300, t0 + len * 0.3);
+  f2.frequency.exponentialRampToValueAtTime(1900, t0 + len * 0.65);
+  f2.frequency.exponentialRampToValueAtTime(950, t0 + len);
+  const f2g = c.createGain(); f2g.gain.value = 0.5;
+
+  o.connect(f1).connect(f1g);
+  o.connect(f2).connect(f2g);
+
+  /* 息のノイズ（専用の短いバッファをその場で作る） */
+  const noiseBuf = c.createBuffer(1, c.sampleRate * 1, c.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const ns = c.createBufferSource(); ns.buffer = noiseBuf;
+  const nbp = c.createBiquadFilter(); nbp.type = "bandpass"; nbp.frequency.value = 2400; nbp.Q.value = 2;
+  const ng = c.createGain(); ng.gain.value = 0.05;
+  ns.connect(nbp).connect(ng);
+
+  /* F1+F2+ノイズの合流後に1つの出力エンベロープ */
+  const env = c.createGain();
+  env.gain.setValueAtTime(0.0001, t0);
+  env.gain.linearRampToValueAtTime(PEAK, t0 + 0.06);
+  env.gain.exponentialRampToValueAtTime(PEAK * 0.6, t0 + len * 0.55);
+  env.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+  f1g.connect(env); f2g.connect(env); ng.connect(env);
+  env.connect(dst);
+
+  o.start(t0); vib.start(t0); ns.start(t0);
+  o.stop(stopAt); vib.stop(stopAt); ns.stop(stopAt);
+}
+
 /* ---------- 環境音（Web Audio合成・すべて位置とパンつき） ---------- */
 const AUDIO3 = {
   ctx: null, master: null, on: false,
@@ -519,32 +577,11 @@ const AUDIO3 = {
     }
   },
 
-  /* ネコ「ニャー」 */
+  /* ネコ「ニャー」（フォルマント合成本体は meowInto に分離） */
   meow(x, z) {
     const dst = this.out(x, z, 1);
-    const c = this.ctx, t0 = c.currentTime;
-    const o = c.createOscillator(); o.type = "sine";
-    o.frequency.setValueAtTime(470, t0);
-    o.frequency.exponentialRampToValueAtTime(790, t0 + 0.16);
-    o.frequency.exponentialRampToValueAtTime(410, t0 + 0.55);
-    const vib = c.createOscillator(); vib.frequency.value = 5.6;
-    const vibG = c.createGain(); vibG.gain.value = 14;
-    vib.connect(vibG).connect(o.frequency);
-    const o2 = c.createOscillator(); o2.type = "sine";   // 2倍音で猫らしい鼻声に
-    o2.frequency.setValueAtTime(940, t0);
-    o2.frequency.exponentialRampToValueAtTime(1580, t0 + 0.16);
-    o2.frequency.exponentialRampToValueAtTime(820, t0 + 0.55);
-    const env = (node, peak) => {
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(peak, t0 + 0.07);
-      g.gain.setValueAtTime(peak, t0 + 0.3);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
-      node.connect(g).connect(dst);
-    };
-    env(o, 0.055); env(o2, 0.017);
-    o.start(t0); o2.start(t0); vib.start(t0);
-    o.stop(t0 + 0.65); o2.stop(t0 + 0.65); vib.stop(t0 + 0.65);
+    const v = { f0: 0.9 + Math.random() * 0.25, len: 0.85 + Math.random() * 0.35 };
+    meowInto(this.ctx, dst, this.ctx.currentTime, v);
   },
 
   /* ヒグラシ（夏の夕）「カナカナカナ…」 */
@@ -622,6 +659,7 @@ const AUDIO3 = {
     s.start(t0); s.stop(t0 + 3.0);
   },
 };
+AUDIO3.meowInto = meowInto;   // Offline検証用に外から呼べるようにする
 
 /* ---------- 入力 ---------- */
 const KEYMAP = {
