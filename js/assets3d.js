@@ -16,7 +16,7 @@ const L = {
     { x: 7.0,  z: 4.2,  big: 0 },
   ],
   BENCH_Z: -7.35,
-  BENCHES_X: [-4.4, -1.5, 1.4, 4.8],
+  BENCHES_X: [-3.2, 1.6],
   BED: { x: 2.6, z: -0.4, r: 2.35 },        // 大木の根元の植え込み
   WBED: { x1: -9.4, z1: -4.2, x2: -7.7, z2: 5.2 }, // 西側の花壇
   FENCE: 9.8,
@@ -176,6 +176,7 @@ function buildFloorTex() {
   };
   hedgeShadow(-9.4, -9.34, 9.4, -8.98);   // 北の生け垣
   hedgeShadow(9.0, -8.5, 9.34, -1.5);     // 東の生け垣
+  hedgeShadow(-8.8, -6.95, -5.7, -6.3);   // 公衆トイレ（南東側）
 
   /* --- 本体 --- */
   const brickPal = [[172, 116, 92], [158, 102, 82], [178, 128, 102], [148, 94, 76]];
@@ -857,6 +858,80 @@ function texSign() {
   return sh.c;
 }
 
+/* ---------- 公衆トイレ（北西の角の小さなタイル張り建物） ---------- */
+function texToiletFront() {
+  /* 正面 2.8m × 2.6m。出入口2つ＋男女ピクトグラム */
+  const ppm = 24, W = Math.round(2.8 * ppm), H = Math.round(2.6 * ppm); // 67×62
+  const sh = sheetA(W, H);
+  const rng = mulberry32(881);
+  const tile = [196, 192, 184];
+  sh.rect(0, 0, W, 6, [110, 104, 96]);        // 屋根帯
+  sh.rect(0, 6, W, 1, [150, 144, 136]);       // 軒の影
+  for (let y = 7; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, vary(tile, rng, 5));
+  for (let y = 7; y < H; y++)                 // 横タイル目地（8px間隔）
+    if ((y - 7) % 8 === 0) sh.rect(0, y, W, 1, [172, 168, 158]);
+
+  const doorW = 11, doorH = 42, doorTop = H - 5 - doorH;
+  const doors = [
+    { x: 15, col: [86, 120, 196], skirt: false },              // 男性（青）
+    { x: W - 15 - doorW, col: [204, 92, 110], skirt: true },   // 女性（赤・スカート）
+  ];
+  for (const d of doors) {
+    sh.rect(d.x, doorTop, doorW, doorH, [66, 68, 74]);          // 暗い開口
+    if (isDark()) {
+      sh.rectRaw(d.x + 1, doorTop + 1, doorW - 2, doorH - 2, [92, 86, 78]); // 開口内をわずかに明るく
+      for (const ox of [d.x + 1, d.x + doorW - 2])
+        for (const [oy, a] of [[doorTop - 1, 0.85], [doorTop - 2, 0.45]])
+          sh.pxRaw(ox, oy, [255, 224, 150], a);                 // 灯り
+    }
+    /* 人型ピクトグラム（頭+胴体。女性はスカートで裾広がり） */
+    const px0 = d.x + Math.floor((doorW - 7) / 2), py0 = doorTop - 8;
+    sh.rect(px0 + 2, py0, 3, 2, d.col);
+    sh.rect(px0 + 2, py0 + 2, 3, 3, d.col);
+    if (d.skirt) sh.rect(px0, py0 + 5, 7, 3, d.col);
+    else { sh.rect(px0 + 1, py0 + 5, 2, 3, d.col); sh.rect(px0 + 4, py0 + 5, 2, 3, d.col); }
+  }
+  /* 接地影 */
+  for (let y = H - 5; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, [86, 82, 76], (y - H + 5) / 5 * 0.5);
+  return sh.c;
+}
+function texToiletSide() {
+  /* 側面 2.2m × 2.6m。高窓スリットのみ */
+  const ppm = 24, W = Math.round(2.2 * ppm), H = Math.round(2.6 * ppm); // 53×62
+  const sh = sheetA(W, H);
+  const rng = mulberry32(883);
+  const tile = [196, 192, 184];
+  sh.rect(0, 0, W, 6, [110, 104, 96]);
+  sh.rect(0, 6, W, 1, [150, 144, 136]);
+  for (let y = 7; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, vary(tile, rng, 5));
+  for (let y = 7; y < H; y++)
+    if ((y - 7) % 8 === 0) sh.rect(0, y, W, 1, [172, 168, 158]);
+  const sw = 12, sx = Math.round((W - sw) / 2);
+  sh.rect(sx, 14, sw, 4, [70, 72, 80]);       // 高窓スリット
+  for (let y = H - 5; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, [86, 82, 76], (y - H + 5) / 5 * 0.5);
+  return sh.c;
+}
+function texToiletBack() {
+  /* 背面 2.8m × 2.6m。ドアなしの無地タイル壁 */
+  const ppm = 24, W = Math.round(2.8 * ppm), H = Math.round(2.6 * ppm); // 67×62
+  const sh = sheetA(W, H);
+  const rng = mulberry32(887);
+  const tile = [196, 192, 184];
+  sh.rect(0, 0, W, 6, [110, 104, 96]);
+  sh.rect(0, 6, W, 1, [150, 144, 136]);
+  for (let y = 7; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, vary(tile, rng, 5));
+  for (let y = 7; y < H; y++)
+    if ((y - 7) % 8 === 0) sh.rect(0, y, W, 1, [172, 168, 158]);
+  for (let y = H - 5; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, [86, 82, 76], (y - H + 5) / 5 * 0.5);
+  return sh.c;
+}
+
 /* ============================================================
    ビルボードスプライト
    ============================================================ */
@@ -1408,6 +1483,9 @@ function buildAssets() {
     sideWhite: texSideWall([226, 226, 220], 6.5, 7.4, 313),
     sideGray: texSideWall([184, 186, 190], 5.8, 5.4, 317),
     wires: texWires(),
+    toiletFront: texToiletFront(),
+    toiletBack: texToiletBack(),
+    toiletSide: texToiletSide(),
   };
   const flowering = ENV.season === "spring" || ENV.season === "summer";
   ASSETS.spr = {

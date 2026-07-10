@@ -106,6 +106,13 @@ function buildScene() {
                sideEnd: T.leg });
   COLLIDERS.push({ x: 7.1, z: 8.42, r: 0.5 });
 
+  /* --- 公衆トイレ（北西の角） --- */
+  BOXES.push({ x1: -9.0, x2: -6.2, z1: -9.2, z2: -7.0, y0: 0, y1: 2.6,
+               sideS: T.toiletFront, sideN: T.toiletBack, sideE: T.toiletSide,
+               sideW: T.toiletSide, side: T.toiletFront, top: { colS: "rgb(96,92,88)" } });
+  COLLIDERS.push({ x: -8.3, z: -8.1, r: 1.05 });
+  COLLIDERS.push({ x: -6.9, z: -8.1, r: 1.05 });
+
   /* --- 園内の木（クスノキ=大 / ケヤキ=小。3フレームの揺れ付き） --- */
   const smalls = [S.treeSm1, S.treeSm2, S.treeSm3];
   SAKURA_POS = [];
@@ -147,7 +154,7 @@ function buildScene() {
   COLLIDERS.push({ x: -8.5, z: 4, r: 1.1 });
 
   /* --- 園内の隅の低木・入口まわり --- */
-  for (const [sx, sz, i] of [[8.6, -8.6, 0], [-8.8, -8.7, 1], [2.4, 9.15, 0], [-8.9, 8.8, 1]]) {
+  for (const [sx, sz, i] of [[8.6, -8.6, 0], [2.4, 9.15, 0], [-8.9, 8.8, 1]]) {
     const sp = S.shrub[i];
     SPRITES3.push({ x: sx, z: sz, img: sp.img, w: sp.w, h: sp.h });
     COLLIDERS.push({ x: sx, z: sz, r: 0.5 });
@@ -190,11 +197,11 @@ function buildScene() {
   });
 
   /* ネコ（ベンチの上で丸くなる茶トラ / 木陰に座るハチワレ） */
-  SPRITES3.push({ x: 4.8, z: L.BENCH_Z - 0.02, y0: 0.44,
+  SPRITES3.push({ x: 1.6, z: L.BENCH_Z - 0.02, y0: 0.44,
                   img: S.catSleep.img, w: S.catSleep.w, h: S.catSleep.h });
   SPRITES3.push({ x: 4.2, z: 1.1, img: S.catSit.img, w: S.catSit.w, h: S.catSit.h });
   COLLIDERS.push({ x: 4.2, z: 1.1, r: 0.3 });
-  CATS = [{ x: 4.2, z: 1.1, awake: true }, { x: 4.8, z: L.BENCH_Z, awake: false }];
+  CATS = [{ x: 4.2, z: 1.1, awake: true }, { x: 1.6, z: L.BENCH_Z, awake: false }];
 }
 
 /* ---------- カメラ・移動（移動と見回しは独立） ---------- */
