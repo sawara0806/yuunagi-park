@@ -7,21 +7,28 @@
 /* ---------- シーンの組み立て ---------- */
 let WALLS = [], BOXES = [], SPRITES3 = [], COLLIDERS = [];
 let PIGEONS = [], LEAVES = [], CATS = [], SAKURA_POS = [];
+let RAIN = [], SPLASHES = [];
 let INSIDE = false;   // 入園中か（タイトル表示中はfalse）
 let simT = 0;         // アニメーション用の経過秒
 
-/* 季節・時間帯を切り替えて全素材とシーンを作り直す */
+/* 季節・時間帯・天気を切り替えて全素材とシーンを作り直す */
 const SKY_TOP_FILL = {
   morning: "rgb(140,172,210)", day: "rgb(150,196,232)",
   dusk: "rgb(88,76,122)", night: "rgb(10,16,38)",
+};
+const RAIN_SKY_TOP_FILL = {
+  morning: "rgb(150,156,168)", day: "rgb(158,166,178)",
+  dusk: "rgb(110,100,118)", night: "rgb(16,20,36)",
 };
 function rebuildWorld() {
   buildAssets();
   R3.floor = ASSETS.floor;
   R3.sky = ASSETS.sky;
   R3.clouds = ASSETS.clouds;
-  R3.hazeCol = HAZE_MODE[ENV.mode];
-  R3.skyTopFill = SKY_TOP_FILL[ENV.mode];
+  const rain = ENV.weather === "rain";
+  R3.hazeCol = (rain ? HAZE_RAIN : HAZE_MODE)[ENV.mode];
+  R3.FAR_HAZE = rain ? 40 : 62;
+  R3.skyTopFill = (rain ? RAIN_SKY_TOP_FILL : SKY_TOP_FILL)[ENV.mode];
   LEAVES = [];
   buildScene();
 }
@@ -441,6 +448,12 @@ const AUDIO3 = {
     const rg = c.createGain(); rg.gain.value = 0.016;
     r.connect(rlp).connect(rg).connect(this.master);
     r.start();
+    /* 雨音（常設。ゲインは季節・時間帯と独立にupdateで開閉する） */
+    const rn = c.createBufferSource(); rn.buffer = this.noiseBuf; rn.loop = true;
+    const rbp = c.createBiquadFilter(); rbp.type = "bandpass"; rbp.frequency.value = 1900; rbp.Q.value = 0.5;
+    this.rainG = c.createGain(); this.rainG.gain.value = 0;
+    rn.connect(rbp).connect(this.rainG).connect(this.master);
+    rn.start();
   },
   setOn(on) {
     this.on = on;
@@ -464,8 +477,11 @@ const AUDIO3 = {
     /* 着席中は環境音をわずかに濃くする（風・葉ずれ約1.25倍、鳥系の間隔を短く） */
     const boost = this.seated ? 1.25 : 1;
     const birdBoost = this.seated ? 0.75 : 1;
-    this.windG.gain.setTargetAtTime((0.02 + w * 0.045) * boost, now, 0.35);
+    const rain = ENV.weather === "rain";
+    const windRainMul = rain ? 1.2 : 1;
+    this.windG.gain.setTargetAtTime((0.02 + w * 0.045) * boost * windRainMul, now, 0.35);
     this.leafG.gain.setTargetAtTime(w * w * (0.02 + treeNear * 0.055) * boost, now, 0.25);
+    this.rainG.gain.setTargetAtTime(rain ? 0.055 : 0, now, 0.8);
 
     /* ---- 出来事のスケジューラ（時間帯と季節でゲート） ---- */
     const M = ENV.mode, S = ENV.season;
@@ -474,7 +490,8 @@ const AUDIO3 = {
     this.birdT -= dt;
     if (this.birdT <= 0) {
       this.birdT = (2.2 + Math.random() * 4) * birdBoost;
-      if (M !== "night" && Math.random() < (daytime ? 0.7 : 0.4)) {
+      const chirpP = (daytime ? 0.7 : 0.4) * (rain ? 0.3 : 1);   // 雨は発火確率×0.3
+      if (M !== "night" && Math.random() < chirpP) {
         const tr = pickTree(); this.chirp(tr.x, tr.z);
       }
     }
@@ -482,17 +499,17 @@ const AUDIO3 = {
     if (this.cooT <= 0) {
       this.cooT = (6 + Math.random() * 9) * birdBoost;
       const p = PIGEONS[(Math.random() * PIGEONS.length) | 0];
-      if (p && daytime) this.coo(p.x, p.z);
+      if (p && daytime && !rain) this.coo(p.x, p.z);
     }
     this.bulbulT -= dt;
     if (this.bulbulT <= 0) {
       this.bulbulT = (12 + Math.random() * 16) * birdBoost;
-      if (M !== "night") { const tr = pickTree(); this.hiyo(tr.x, tr.z); }
+      if (M !== "night" && !rain) { const tr = pickTree(); this.hiyo(tr.x, tr.z); }
     }
     this.semiT -= dt;
     if (this.semiT <= 0) {
       this.semiT = 18 + Math.random() * 24;
-      if (S === "summer" && daytime) { const tr = pickTree(); this.semi(tr.x, tr.z); }
+      if (S === "summer" && daytime && !rain) { const tr = pickTree(); this.semi(tr.x, tr.z); }
     }
     this.higuT -= dt;
     if (this.higuT <= 0) {
@@ -893,6 +910,36 @@ function updateAnim(dt) {
     l.z += l.vz * dt;
     if (l.y0 <= 0.03) LEAVES.splice(i, 1);
   }
+  /* 雨: 雨すじ70粒を維持し、着地したら波紋を残して上へリスポーン */
+  if (ENV.weather === "rain") {
+    const rd = ASSETS.spr.rainDrop, sp2 = ASSETS.spr.splash;
+    while (RAIN.length < 70) {
+      RAIN.push({
+        x: CAM.x + (Math.random() - 0.5) * 18,
+        z: CAM.z + (Math.random() - 0.5) * 18,
+        y0: 3 + Math.random() * 3,
+        img: rd.img, w: rd.w, h: rd.h,
+      });
+    }
+    for (const r of RAIN) {
+      r.y0 -= 7.5 * dt;
+      r.x += wind * 0.3 * dt;
+      if (r.y0 < 0.05) {
+        if (SPLASHES.length < 12) {
+          SPLASHES.push({ x: r.x, z: r.z, ttl: 0.13, img: sp2.img, w: sp2.w, h: sp2.h });
+        }
+        r.x = CAM.x + (Math.random() - 0.5) * 18;
+        r.z = CAM.z + (Math.random() - 0.5) * 18;
+        r.y0 = 3 + Math.random() * 3;
+      }
+    }
+    for (let i = SPLASHES.length - 1; i >= 0; i--) {
+      SPLASHES[i].ttl -= dt;
+      if (SPLASHES[i].ttl <= 0) SPLASHES.splice(i, 1);
+    }
+  } else if (RAIN.length || SPLASHES.length) {
+    RAIN = []; SPLASHES = [];
+  }
   return wind;
 }
 
@@ -902,8 +949,9 @@ function tick(dt) {
   if (INSIDE) { movePlayer(dt); updateSeatUI(); }
   const wind = updateAnim(dt);
   AUDIO3.update(dt, wind);
+  const extra = LEAVES.length || RAIN.length || SPLASHES.length;
   R3.render(CAM, WALLS, BOXES,
-    LEAVES.length ? SPRITES3.concat(LEAVES) : SPRITES3, simT);
+    extra ? SPRITES3.concat(LEAVES, RAIN, SPLASHES) : SPRITES3, simT);
 }
 function frame(now) {
   const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
@@ -949,6 +997,11 @@ document.getElementById("enter-btn").addEventListener("click", () => {
     document.getElementById("sound-btn").classList.add("active");
   } catch (err) { /* 音が使えなくても入園できる */ }
 });
+document.getElementById("rain-btn").addEventListener("click", () => {
+  ENV.weather = ENV.weather === "rain" ? "clear" : "rain";
+  rebuildWorld();
+  document.getElementById("rain-btn").classList.toggle("active", ENV.weather === "rain");
+});
 document.getElementById("sound-btn").addEventListener("click", () => {
   try { AUDIO3.init(); } catch (err) { return; }
   AUDIO3.setOn(!AUDIO3.on);
@@ -961,6 +1014,10 @@ window.PARK = {
   setEnv(season, mode) {
     if (season) ENV.season = season;
     if (mode) ENV.mode = mode;
+    rebuildWorld();
+  },
+  setWeather(w) {
+    ENV.weather = w;
     rebuildWorld();
   },
   step(n, dt) {

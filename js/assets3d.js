@@ -33,29 +33,39 @@ const L = {
   ],
 };
 
-/* ---------- 季節と時間帯 ---------- */
-const ENV = { season: "summer", mode: "day" };
+/* ---------- 季節と時間帯と天気 ---------- */
+const ENV = { season: "summer", mode: "day", weather: "clear" };
 const MODE_GRADE = {
   morning: { mul: [1.03, 0.98, 0.93], tint: [255, 224, 178], amt: 0.10 },
   day:     { mul: [1, 1, 1], tint: [255, 255, 255], amt: 0 },
   dusk:    { mul: [1.10, 0.87, 0.74], tint: [250, 148, 92], amt: 0.18 },
   night:   { mul: [0.40, 0.46, 0.62], tint: [52, 72, 118], amt: 0.28 },
 };
+/* 雨: MODE_GRADEの後にさらに重ねる曇天寄りのグレーディング */
+const RAIN_GRADE = { mul: [0.84, 0.86, 0.90], tint: [182, 196, 212], amt: 0.10 };
 const HAZE_MODE = {
   morning: [228, 216, 198], day: [214, 222, 228],
   dusk: [210, 158, 126], night: [34, 44, 64],
 };
+const HAZE_RAIN = {
+  morning: [190, 194, 200], day: [198, 202, 208],
+  dusk: [162, 148, 146], night: [50, 58, 78],
+};
 const isDark = () => ENV.mode === "dusk" || ENV.mode === "night";
 let GRADE_BYPASS = false;   // 空など「モード専用の色」を作るとき true
-function gradeColor(c) {
-  if (GRADE_BYPASS) return c;
-  const g = MODE_GRADE[ENV.mode];
+function applyGrade(c, g) {
   if (g.amt === 0) return c;
   return [
     Math.min(255, (c[0] * g.mul[0]) * (1 - g.amt) + g.tint[0] * g.amt),
     Math.min(255, (c[1] * g.mul[1]) * (1 - g.amt) + g.tint[1] * g.amt),
     Math.min(255, (c[2] * g.mul[2]) * (1 - g.amt) + g.tint[2] * g.amt),
   ];
+}
+function gradeColor(c) {
+  if (GRADE_BYPASS) return c;
+  let out = applyGrade(c, MODE_GRADE[ENV.mode]);
+  if (ENV.weather === "rain") out = applyGrade(out, RAIN_GRADE);
+  return out;
 }
 
 /* ---------- 基本ヘルパ ---------- */
@@ -191,6 +201,18 @@ function buildFloorTex() {
     winter: { verge: [152, 142, 112], belt: [144, 134, 106], joint: [130, 122, 96],
               leafTh: 0.9995, leafCols: [[120, 96, 60]] },
   }[ENV.season];
+  /* 雨: 水たまり5箇所（固定座標・広場と平板の上）と、反射に使う暗めの空グレー */
+  const RAIN_PUDDLES = [
+    { x: 1.2, z: 2.0, rx: 1.1, rz: 0.6 },
+    { x: -4.5, z: 4.4, rx: 0.8, rz: 0.5 },
+    { x: 5.8, z: -3.2, rx: 0.9, rz: 0.5 },
+    { x: -2.2, z: -5.6, rx: 0.7, rz: 0.4 },
+    { x: 7.4, z: 5.9, rx: 0.6, rz: 0.4 },
+  ];
+  const PUDDLE_SKY = {
+    morning: [141, 144, 150], day: [147, 151, 156],
+    dusk: [121, 104, 99], night: [32, 37, 52],
+  }[ENV.mode];
   /* 木の近くほど落ち葉が濃い（秋） */
   const allTrees = L.TREES.concat(L.STREET_TREES);
   const nearTree = (x, z) => {
@@ -361,6 +383,21 @@ function buildFloorTex() {
                  col[2] + (150 - col[2]) * f];
         }
       }
+      /* 雨: 全体を暗く濡らし、まれに照り返しの点＋固定5箇所の水たまり */
+      if (ENV.weather === "rain") {
+        col = [col[0] * 0.90, col[1] * 0.90, col[2] * 0.90];
+        if (hash2(tx + 41, tz + 41) < 0.004) col = [col[0] + 22, col[1] + 22, col[2] + 22];
+        for (const p of RAIN_PUDDLES) {
+          const pdx = (wx - p.x) / p.rx, pdz = (wz - p.z) / p.rz;
+          const pd = Math.hypot(pdx, pdz);
+          if (pd >= 1) continue;
+          if (pd > 0.78 && ((tx + tz) & 1)) continue;      // 縁のディザ
+          col = [col[0] * 0.5 + PUDDLE_SKY[0] * 0.5,
+                 col[1] * 0.5 + PUDDLE_SKY[1] * 0.5,
+                 col[2] * 0.5 + PUDDLE_SKY[2] * 0.5];
+          break;
+        }
+      }
       data[tz * size + tx] = pack(clamp255(col[0]), clamp255(col[1]), clamp255(col[2]));
     }
   }
@@ -378,7 +415,7 @@ function buildSkyTex() {
   const sh = sheetA(w, h);
   const rng = mulberry32(777001);
   GRADE_BYPASS = true;   // 空の色はモードごとに手で決める
-  const P = {
+  const CLEAR = {
     morning: { top: [140, 172, 210], bot: [246, 220, 186],
                ridge1: [206, 198, 204], ridge2: [192, 184, 194],
                towerA: [190, 192, 202], towerB: [178, 180, 194],
@@ -398,7 +435,27 @@ function buildSkyTex() {
                towerA: [36, 48, 72], towerB: [30, 42, 64],
                haze: [46, 58, 86], winLit: 0.55,
                moon: { x: 0.62, y: 34, r: 8 } },
-  }[ENV.mode];
+  };
+  /* 雨: フラットな灰の階調。太陽・月・星は描かず、山なみ/ビル群もhaze寄りに霞ませる */
+  const RAIN = {
+    morning: { top: [150, 156, 168], bot: [196, 200, 208],
+               ridge1: [176, 178, 186], ridge2: [166, 170, 180],
+               towerA: [172, 176, 184], towerB: [162, 168, 178],
+               haze: [190, 194, 200], winLit: 0.10 },
+    day:     { top: [158, 166, 178], bot: [204, 210, 216],
+               ridge1: [182, 188, 194], ridge2: [172, 180, 188],
+               towerA: [178, 184, 192], towerB: [168, 176, 186],
+               haze: [196, 200, 206], winLit: 0 },
+    dusk:    { top: [110, 100, 118], bot: [168, 144, 138],
+               ridge1: [142, 132, 138], ridge2: [130, 122, 130],
+               towerA: [136, 126, 134], towerB: [124, 116, 128],
+               haze: [158, 144, 142], winLit: 0.35 },
+    night:   { top: [16, 20, 36], bot: [44, 52, 72],
+               ridge1: [40, 46, 64], ridge2: [34, 40, 58],
+               towerA: [42, 48, 68], towerB: [36, 44, 62],
+               haze: [50, 58, 78], winLit: 0.45 },
+  };
+  const P = (ENV.weather === "rain" ? RAIN : CLEAR)[ENV.mode];
 
   for (let y = 0; y < h; y++) {
     const t = Math.pow(y / (h - 1), 0.85);
@@ -410,8 +467,8 @@ function buildSkyTex() {
       sh.px(x, y, [c[0] + d, c[1] + d, c[2] + d]);
     }
   }
-  /* 星（夜） */
-  if (ENV.mode === "night") {
+  /* 星（夜。雨の夜は曇っていて見えない） */
+  if (ENV.mode === "night" && ENV.weather !== "rain") {
     for (let i = 0; i < 320; i++) {
       const x = (rng() * w) | 0, y = (rng() * (h - 60)) | 0;
       const b = 0.35 + rng() * 0.65;
@@ -518,7 +575,11 @@ function buildCloudsTex() {
   const w = 2325, h = 130;
   const sh = sheetA(w, h);
   const rng = mulberry32(424242);
-  for (let i = 0; i < 13; i++) {
+  const rain = ENV.weather === "rain";
+  const n = rain ? 18 : 13;                        // 雨は数割増し
+  const colHi = rain ? [188, 192, 200] : [246, 250, 252];
+  const colLo = rain ? [158, 163, 175] : [225, 233, 240];
+  for (let i = 0; i < n; i++) {
     const cx = rng() * w, cy = 8 + rng() * 100, s = 14 + rng() * 22;
     const nb = 7 + (rng() * 4 | 0);
     for (let b = 0; b < nb; b++) {
@@ -531,7 +592,7 @@ function buildCloudsTex() {
           if (d > 0.5 && ((x + y) & 1)) continue;
           if (d > 0.8 && ((x * 3 + y) & 3)) continue;
           const xx = ((x % w) + w) % w;
-          sh.px(xx, y, y > by + br * 0.15 ? [225, 233, 240] : [246, 250, 252]);
+          sh.px(xx, y, y > by + br * 0.15 ? colLo : colHi);
         }
     }
   }
@@ -1459,6 +1520,30 @@ function sprLeaf(seed) {
   return { img: sh.c, w: 0.09, h: 0.09 };
 }
 
+function sprRainDrop() {
+  /* 雨すじ: 縦2×8px。上端ほど透明な青白（発光扱いなのでpxRaw） */
+  const W = 2, H = 8;
+  const sh = sheetA(W, H);
+  const col = [214, 224, 238];
+  for (let y = 0; y < H; y++) {
+    const a = 0.15 + (y / (H - 1)) * 0.55;   // 上端ほど透明
+    sh.pxRaw(0, y, col, a);
+    sh.pxRaw(1, y, col, a * 0.6);
+  }
+  return { img: sh.c, w: 0.03, h: 0.4 };
+}
+function sprSplash() {
+  /* 雨粒が着地した波紋: 6×3pxの薄い白い輪（pxRaw） */
+  const W = 6, H = 3;
+  const sh = sheetA(W, H);
+  const col = [232, 238, 244];
+  sh.pxRaw(1, 0, col, 0.35); sh.pxRaw(2, 0, col, 0.45);
+  sh.pxRaw(3, 0, col, 0.45); sh.pxRaw(4, 0, col, 0.35);
+  sh.pxRaw(0, 1, col, 0.5); sh.pxRaw(5, 1, col, 0.5);
+  sh.pxRaw(1, 2, col, 0.3); sh.pxRaw(4, 2, col, 0.3);
+  return { img: sh.c, w: 0.18, h: 0.09 };
+}
+
 /* ============================================================ */
 const ASSETS = {};
 function buildAssets() {
@@ -1495,6 +1580,7 @@ function buildAssets() {
     treeSm3: ENV.season === "spring" ? sprKeyaki(505, LEAF_PAL.sakura) : sprKeyaki(505),
     catSleep: sprCatSleep(), catSit: sprCatSit(),
     leaf: [sprLeaf(1), sprLeaf(2)],
+    rainDrop: sprRainDrop(), splash: sprSplash(),
     liriope: [sprLiriope(11), sprLiriope(22), sprLiriope(33)],
     shrub: [sprShrub(44), sprShrub(55)],
     /* サツキの花は春〜夏だけ */
