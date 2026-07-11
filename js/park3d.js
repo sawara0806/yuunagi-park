@@ -7,7 +7,7 @@
 /* ---------- シーンの組み立て ---------- */
 let WALLS = [], BOXES = [], SPRITES3 = [], COLLIDERS = [];
 let PIGEONS = [], LEAVES = [], CATS = [], SAKURA_POS = [];
-let RAIN = [], SPLASHES = [];
+let RAIN = [], SPLASHES = [], CAT_ANIMS = [];
 let INSIDE = false;   // 入園中か（タイトル表示中はfalse）
 let simT = 0;         // アニメーション用の経過秒
 
@@ -203,12 +203,28 @@ function buildScene() {
     PIGEONS.push(ent);
   });
 
-  /* ネコ（ベンチの上で丸くなる茶トラ / 木陰に座るハチワレ） */
-  SPRITES3.push({ x: 1.6, z: L.BENCH_Z - 0.02, y0: 0.44,
-                  img: S.catSleep.img, w: S.catSleep.w, h: S.catSleep.h });
-  SPRITES3.push({ x: 4.2, z: 1.1, img: S.catSit.img, w: S.catSit.w, h: S.catSit.h });
+  /* ネコ（ベンチの上で丸くなる茶トラ / 木陰に座るハチワレ）
+     2フレームの小さなアニメ: 寝ネコ=呼吸、座りネコ=瞬き＋しっぽ */
+  CAT_ANIMS = [];
+  const sleepEnt = { x: 1.6, z: L.BENCH_Z - 0.02, y0: 0.44,
+                     img: S.catSleep.frames[0], frames: S.catSleep.frames,
+                     w: S.catSleep.w, h: S.catSleep.h, kind: "sleep", fi: 0, animT: 0.8 };
+  const sitEnt = { x: 4.2, z: 1.1,
+                   img: S.catSit.frames[0], frames: S.catSit.frames,
+                   w: S.catSit.w, h: S.catSit.h, kind: "sit", fi: 0, animT: 2.5 };
+  SPRITES3.push(sleepEnt, sitEnt);
+  CAT_ANIMS.push(sleepEnt, sitEnt);
   COLLIDERS.push({ x: 4.2, z: 1.1, r: 0.3 });
   CATS = [{ x: 4.2, z: 1.1, awake: true }, { x: 1.6, z: L.BENCH_Z, awake: false }];
+
+  /* --- コンビニ（東の開けた側・園外） --- */
+  pushWall({ x1: 17.2, z1: -0.5, x2: 17.2, z2: 8.5, h: 3.4, tex: T.konbini });
+  pushWall({ x1: 17.2, z1: -0.5, x2: 23, z2: -0.5, h: 3.4, tex: T.konbiniSide });
+  pushWall({ x1: 17.2, z1: 8.5, x2: 23, z2: 8.5, h: 3.4, tex: T.konbiniSide });
+
+  /* --- 喫煙所（コンビニの南隣・園外） --- */
+  pushWall({ x1: 15.9, z1: 9.8, x2: 18.3, z2: 9.8, h: 1.7, tex: T.smokePanel });
+  SPRITES3.push({ x: 17.1, z: 9.3, img: S.ashtray.img, w: S.ashtray.w, h: S.ashtray.h });
 }
 
 /* ---------- カメラ・移動（移動と見回しは独立） ---------- */
@@ -874,6 +890,20 @@ function updateAnim(dt) {
       p.state ^= 1;
       p.t = p.state ? 0.35 + Math.random() * 0.5 : 0.8 + Math.random() * 3.2;
       p.img = p.frames[p.state];
+    }
+  }
+  /* ネコ: 寝ネコは呼吸、座りネコはたまに瞬き＋しっぽ */
+  for (const c of CAT_ANIMS) {
+    c.animT -= dt;
+    if (c.animT <= 0) {
+      if (c.kind === "sleep") {
+        c.fi ^= 1; c.animT = 0.8;                     // 1.6秒周期の呼吸
+      } else if (c.fi === 0) {
+        c.fi = 1; c.animT = 0.22;                     // 瞬き＋しっぽの一振り
+      } else {
+        c.fi = 0; c.animT = 2.2 + Math.random() * 2.6;
+      }
+      c.img = c.frames[c.fi];
     }
   }
   /* 舞うもの: 春=サクラの花びら / 夏=葉 / 秋=紅葉たくさん / 冬=雪 */

@@ -235,7 +235,13 @@ function buildFloorTex() {
       if (border > 10.0) {
         /* --- 園外: 縁石 → 植樹帯の芝生 → 車道 → 歩道 → 緑地帯 --- */
         const gatePath = wz > 10.0 && Math.abs(wx) < 1.5;   // 入口前の通路
-        if (border < 10.42) {
+        if (wx > 15.2 && wx < 17.2 && wz > -0.5 && wz < 8.5) {
+          /* コンビニ前の駐車場（白線つき） */
+          const t = 150 + (n - 0.5) * 9;
+          col = [t, t - 1, t - 2];
+          if ((Math.abs(wz - 2.3) < 0.05 || Math.abs(wz - 5.3) < 0.05) && n > 0.3)
+            col = [212, 214, 212];
+        } else if (border < 10.42) {
           const t = 176 + (n - 0.5) * 10;
           col = [t + 2, t, t - 8];
           const alongJ = Math.abs(wx) > Math.abs(wz)
@@ -1442,63 +1448,198 @@ function sprPigeon(seed) {
 }
 
 function sprCatSleep() {
-  /* ベンチで丸くなる茶トラ */
-  const W = 22, H = 11; // 0.46m × 0.23m
-  const sh = sheetA(W, H);
-  const O = [212, 140, 74], D = [176, 106, 54], C = [232, 172, 108];
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const d = Math.hypot((x - 10.5) / 1.75, (y - 6) * 1.15);
-      if (d > 4.4) continue;
-      let c = O;
-      if (((x - y + 20) % 4) < 1) c = D;                          // トラ縞
-      if (y > 8) c = D;
-      sh.px(x, y, c);
-    }
-  /* 頭（右側・うずくまる） */
-  for (let y = 2; y < 8; y++)
-    for (let x = 14; x < 21; x++)
-      if (Math.hypot((x - 17) / 1.2, y - 5) < 2.9) sh.px(x, y, O);
-  sh.px(15, 1, D); sh.px(16, 2, O);                               // 耳
-  sh.px(19, 1, D); sh.px(19, 2, O);
-  sh.px(18, 5, [120, 76, 44]);                                    // 閉じた目
-  sh.px(16, 5, [120, 76, 44]);
-  /* しっぽを体に巻く */
-  for (let x = 3; x < 13; x++) sh.px(x, 9, D);
-  sh.px(2, 8, D); sh.px(13, 9, D);
-  /* 胸元 */
-  sh.px(14, 7, C); sh.px(15, 7, C);
-  return { img: sh.c, w: 0.46, h: 0.23 };
+  /* ベンチで丸くなる茶トラ（64px/m・呼吸2フレーム） */
+  const W = 29, H = 15; // 0.46m × 0.23m
+  const O = [224, 152, 86], D = [188, 116, 58], C = [244, 196, 138];
+  const P = [244, 172, 170], LN = [124, 80, 46], Wt = [250, 244, 234];
+  const build = f => {
+    const sh = sheetA(W, H);
+    const cy = 8.2 - (f ? 0.45 : 0);                 // 呼吸で背中が上下
+    /* 体（アンモニャイト） */
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot((x - 13) / 1.95, (y - cy) / 1.06);
+        if (d > 5.6) continue;
+        let c = O;
+        if (y > 10 && x < 16) c = C;                              // おなか側
+        if (y < 8 && x > 2 && x < 17 && ((x + (y >> 1)) % 5) < 2) c = D; // 背中の縞
+        sh.px(x, y, c);
+      }
+    /* 頭（右・体にあずける） */
+    for (let y = 1; y < 12; y++)
+      for (let x = 16; x < 27; x++)
+        if (Math.hypot((x - 21.5) / 1.15, y - 6.2) < 4.6) {
+          let c = O;
+          if (y < 4 && ((x + 1) % 4) < 2) c = D;                  // 頭の縞
+          sh.px(x, y, c);
+        }
+    /* 耳＋ピンクの内耳 */
+    sh.px(18, 1, D); sh.px(19, 0, D); sh.px(19, 1, P);
+    sh.px(24, 0, D); sh.px(25, 1, D); sh.px(24, 1, P);
+    /* 閉じた目「⌒」・マズル・鼻 */
+    sh.px(20, 6, LN); sh.px(21, 5, LN); sh.px(22, 5, LN); sh.px(23, 6, LN);
+    sh.px(24, 8, Wt); sh.px(25, 8, Wt); sh.px(26, 8, Wt); sh.px(25, 9, Wt);
+    sh.px(25, 7, P);
+    /* 前足を顔の下にたたむ・胸元 */
+    sh.px(20, 10, Wt); sh.px(21, 10, Wt);
+    sh.px(17, 9, C); sh.px(18, 10, C);
+    /* しっぽを前にくるり（先だけ濃く） */
+    for (let x = 4; x < 22; x++) { sh.px(x, 12, D); sh.px(x, 13, D); }
+    sh.px(3, 11, D); sh.px(3, 12, D);
+    sh.px(22, 11, [168, 96, 48]); sh.px(23, 11, [168, 96, 48]); sh.px(23, 12, [168, 96, 48]);
+    return sh.c;
+  };
+  const frames = [build(0), build(1)];
+  return { frames, img: frames[0], w: 0.46, h: 0.23 };
 }
 
 function sprCatSit() {
-  /* 木陰に座るハチワレ */
-  const W = 14, H = 21; // 0.3m × 0.44m
-  const sh = sheetA(W, H);
-  const K = [48, 48, 54], Wt = [236, 234, 228], P = [232, 160, 160];
-  /* 体（おしり側が広い） */
-  for (let y = 8; y < 20; y++)
-    for (let x = 0; x < W; x++) {
-      const t = (y - 8) / 12;
-      const cx2 = 7 - t * 1.2, r = 2.6 + t * 2.6;
-      if (Math.abs(x - cx2) > r) continue;
-      sh.px(x, y, x > cx2 + r - 2.4 ? Wt : K);                    // 胸〜腹が白
+  /* 木陰に座るハチワレ（64px/m・しっぽ振り＋瞬き2フレーム） */
+  const W = 19, H = 28; // 0.30m × 0.44m
+  const K = [50, 50, 58], Wt = [244, 242, 236], P = [242, 168, 172];
+  const G = [244, 208, 88], PU = [60, 50, 42];
+  const build = f => {
+    const sh = sheetA(W, H);
+    /* 体（下ぶくれの洋なし形・胸は白） */
+    for (let y = 12; y < 28; y++)
+      for (let x = 0; x < W; x++) {
+        const t = (y - 12) / 15;
+        const cx2 = 9.5 - t * 0.5, r = 3.2 + t * 3.0;
+        if (Math.abs(x - cx2) > r) continue;
+        sh.px(x, y, Math.abs(x - cx2) < 1.8 + t * 0.7 ? Wt : K);
+      }
+    /* 大きな丸い頭（全高の4割。ハチワレの八の字） */
+    for (let y = 0; y < 13; y++)
+      for (let x = 3; x < 17; x++)
+        if (Math.hypot((x - 9.5) / 1.08, y - 6.5) < 5.9) {
+          const wedge = Math.abs(x - 9.5) < 0.2 + y * 0.34;      // 額の白い八の字
+          sh.px(x, y, (y >= 8 || wedge) ? Wt : K);
+        }
+    /* 耳＋ピンクの内耳 */
+    sh.px(4, 1, K); sh.px(5, 0, K); sh.px(5, 1, P); sh.px(6, 1, K);
+    sh.px(14, 1, K); sh.px(13, 0, K); sh.px(13, 1, P); sh.px(12, 1, K);
+    /* 目（金色＋瞳）または瞬き */
+    if (f === 0) {
+      sh.px(7, 6, G); sh.px(7, 7, PU);
+      sh.px(12, 6, G); sh.px(12, 7, PU);
+    } else {
+      sh.px(6, 7, PU); sh.px(7, 7, PU);
+      sh.px(12, 7, PU); sh.px(13, 7, PU);
     }
-  /* 頭と耳 */
-  for (let y = 2; y < 8; y++)
-    for (let x = 3; x < 11; x++)
-      if (Math.hypot(x - 7, (y - 5) * 1.1) < 3.1) sh.px(x, y, y > 4 && x > 6 ? Wt : K);
-  sh.px(4, 1, K); sh.px(5, 1, K); sh.px(4, 0, K);                 // 耳
-  sh.px(9, 1, K); sh.px(10, 1, K); sh.px(10, 0, K);
-  sh.px(5, 4, [240, 210, 90]); sh.px(9, 4, [240, 210, 90]);       // 目
-  sh.px(7, 6, P);                                                  // 鼻
-  /* 前脚（白い靴下） */
-  sh.rect(6, 14, 2, 6, Wt);
-  sh.rect(8, 15, 2, 5, Wt);
-  /* しっぽ（足元に巻く） */
-  for (let x = 1; x < 9; x++) sh.px(x, 20, K);
-  sh.px(0, 19, K); sh.px(1, 19, K);
-  return { img: sh.c, w: 0.3, h: 0.44 };
+    /* 鼻とマズル */
+    sh.px(9, 8, P); sh.px(10, 8, P);
+    /* 白い前脚（そろえて座る） */
+    sh.rect(7, 22, 2, 6, Wt);
+    sh.rect(11, 22, 2, 6, Wt);
+    /* しっぽを前にまわす（f1で先が振れる・先だけ白） */
+    for (let x = 4; x < 13; x++) sh.px(x, 27, K);
+    if (f === 0) { sh.px(3, 26, K); sh.px(3, 25, Wt); }
+    else { sh.px(4, 26, K); sh.px(4, 25, Wt); }
+    return sh.c;
+  };
+  const frames = [build(0), build(1)];
+  return { frames, img: frames[0], w: 0.3, h: 0.44 };
+}
+
+function texKonbini() {
+  /* コンビニ正面 9m×3.4m。夜はガラスとサインが発光（架空の3色帯・文字なし） */
+  const W = 216, H = 82;
+  const sh = sheetA(W, H);
+  const rng = mulberry32(9137);
+  /* 躯体ベース */
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, vary([206, 208, 206], rng, 5));
+  sh.rect(0, 0, W, 4, [122, 120, 116]);                 // 屋根の笠木
+  /* サインバンド（青・白・緑） */
+  const sign = (x, y, w2, h2, col, lit) => {
+    if (lit) sh.rectRaw(x, y, w2, h2, col); else sh.rect(x, y, w2, h2, col);
+  };
+  const lit = isDark();
+  sign(0, 4, W, 3, lit ? [250, 252, 250] : [238, 240, 240], lit);
+  sign(0, 7, W, 4, lit ? [96, 140, 224] : [70, 110, 190], lit);
+  sign(0, 11, W, 4, lit ? [252, 252, 252] : [242, 244, 246], lit);
+  sign(0, 15, W, 4, lit ? [96, 200, 136] : [70, 170, 110], lit);
+  sh.rect(0, 19, W, 1, [140, 140, 138]);
+  /* ガラス面（夜は白緑に発光・棚の縦線） */
+  for (let y = 20; y < 70; y++)
+    for (let x = 4; x < W - 4; x++) {
+      if (lit) sh.pxRaw(x, y, [235, 248, 238]);
+      else sh.px(x, y, [198, 216, 210]);
+    }
+  for (let sx = 22; sx < W - 20; sx += 24)              // 店内の棚の示唆
+    for (let y = 30; y < 64; y++)
+      lit ? sh.pxRaw(sx, y, [206, 224, 210]) : sh.px(sx, y, [172, 190, 184]);
+  for (let x = 4; x < W - 4; x += 36) sh.rect(x, 20, 2, 50, [150, 154, 152]); // サッシ
+  /* 自動ドア（中央） */
+  sh.rect(96, 22, 3, 48, [130, 134, 132]);
+  sh.rect(120, 22, 3, 48, [130, 134, 132]);
+  sh.rect(108, 22, 2, 48, [130, 134, 132]);
+  /* 腰壁と接地影 */
+  sh.rect(0, 70, W, 7, [168, 170, 168]);
+  for (let y = H - 5; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, [96, 96, 94], (y - H + 5) / 5 * 0.5);
+  return sh.c;
+}
+
+function texKonbiniSide() {
+  /* コンビニ側面 6m×3.4m（無地＋ダクト） */
+  const W = 144, H = 82;
+  const sh = sheetA(W, H);
+  const rng = mulberry32(9139);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, vary([188, 190, 188], rng, 5));
+  sh.rect(0, 0, W, 4, [122, 120, 116]);
+  sh.rect(108, 12, 10, 58, [150, 152, 150]);            // ダクト
+  sh.rect(108, 12, 2, 58, [168, 170, 168]);
+  for (let y = H - 5; y < H; y++)
+    for (let x = 0; x < W; x++) sh.px(x, y, [96, 96, 94], 0.4);
+  sh.g.fillStyle = "rgba(212,222,230,0.10)";
+  sh.g.fillRect(0, 0, W, H);
+  return sh.c;
+}
+
+function texSmokePanel() {
+  /* 喫煙所のすりガラスパーティション 2.4m×1.7m（半透明） */
+  const W = 58, H = 41;
+  const sh = sheetA(W, H);
+  /* すりガラス（半透明のスモークグレー） */
+  for (let y = 2; y < H - 4; y++)
+    for (let x = 1; x < W - 1; x++)
+      sh.px(x, y, [96, 106, 118], 0.45);
+  /* フレームと脚 */
+  sh.rect(0, 0, W, 2, [150, 155, 160]);
+  sh.rect(0, H - 5, W, 2, [150, 155, 160]);
+  sh.rect(0, 0, 2, H - 3, [150, 155, 160]);
+  sh.rect(W - 2, 0, 2, H - 3, [150, 155, 160]);
+  sh.rect(28, 0, 2, H - 3, [150, 155, 160]);
+  sh.rect(4, H - 3, 3, 3, [120, 124, 130]);
+  sh.rect(W - 7, H - 3, 3, 3, [120, 124, 130]);
+  /* タバコのピクトグラム（白票にグレーの棒＋赤い火先） */
+  sh.rect(25, 5, 9, 8, [238, 240, 242]);
+  sh.rect(27, 8, 5, 2, [90, 94, 100]);
+  sh.px(26, 8, [214, 90, 70]); sh.px(26, 9, [214, 90, 70]);
+  sh.px(28, 6, [170, 176, 182]); sh.px(30, 6, [170, 176, 182]);
+  return sh.c;
+}
+
+function sprAshtray() {
+  /* 灰皿スタンド 0.3m×0.85m（ステンレスの円筒） */
+  const W = 19, H = 54;
+  const sh = sheetA(W, H);
+  for (let y = 4; y < H; y++)
+    for (let x = 3; x < 16; x++) {
+      let c = [176, 180, 184];
+      if (x < 6) c = [210, 214, 218];                   // ハイライト
+      if (x > 12) c = [140, 144, 148];
+      sh.px(x, y, c);
+    }
+  /* 上面のリムと黒い開口 */
+  sh.rect(2, 0, 15, 3, [196, 200, 204]);
+  sh.rect(5, 1, 9, 2, [42, 44, 46]);
+  sh.rect(2, 3, 15, 1, [120, 124, 128]);
+  /* 火消し穴 */
+  sh.px(7, 20, [110, 114, 118]); sh.px(12, 27, [110, 114, 118]);
+  return { img: sh.c, w: 0.3, h: 0.85 };
 }
 
 function sprLeaf(seed) {
@@ -1568,6 +1709,9 @@ function buildAssets() {
     sideWhite: texSideWall([226, 226, 220], 6.5, 7.4, 313),
     sideGray: texSideWall([184, 186, 190], 5.8, 5.4, 317),
     wires: texWires(),
+    konbini: texKonbini(),
+    konbiniSide: texKonbiniSide(),
+    smokePanel: texSmokePanel(),
     toiletFront: texToiletFront(),
     toiletBack: texToiletBack(),
     toiletSide: texToiletSide(),
@@ -1579,6 +1723,7 @@ function buildAssets() {
     /* 春はケヤキの1種をサクラに差し替える */
     treeSm3: ENV.season === "spring" ? sprKeyaki(505, LEAF_PAL.sakura) : sprKeyaki(505),
     catSleep: sprCatSleep(), catSit: sprCatSit(),
+    ashtray: sprAshtray(),
     leaf: [sprLeaf(1), sprLeaf(2)],
     rainDrop: sprRainDrop(), splash: sprSplash(),
     liriope: [sprLiriope(11), sprLiriope(22), sprLiriope(33)],
