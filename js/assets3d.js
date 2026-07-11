@@ -6,31 +6,18 @@
    その根元の植え込み / 金網フェンス / 奥のアパート / 遠景のビル群
    ============================================================ */
 
-/* ---------- 配置（地面の焼き込み影と park3d.js が共有） ---------- */
+/* ---------- 配置（唯一の真実は js/layout3d.js の LAYOUT。
+   L は既存コードとの互換のためのエイリアス。新規参照は LAYOUT を直接使うこと） ---------- */
 const L = {
-  TREES: [
-    { x: 2.6,  z: -0.6, big: 1 },   // 写真右の大木（植え込みの中）
-    { x: -6.6, z: -3.4, big: 1 },
-    { x: 7.4,  z: -6.2, big: 0 },
-    { x: -5.8, z: -8.6, big: 0 },
-    { x: 7.0,  z: 4.2,  big: 0 },
-  ],
-  BENCH_Z: -7.35,
-  BENCHES_X: [-3.2, 1.6],
-  BED: { x: 2.6, z: -0.4, r: 2.35 },        // 大木の根元の植え込み
-  WBED: { x1: -9.4, z1: -4.2, x2: -7.7, z2: 5.2 }, // 西側の花壇
-  FENCE: 9.8,
-  MANHOLE: { x: -3.2, z: 4.0 },
-  PLAZA_R: 5.68,
-  /* 園外の街路樹（植樹帯 border≈10.9 と 南の遠い緑地帯 z≈16） */
-  STREET_TREES: [
-    { x: -8.0, z: -10.9, big: 0 }, { x: -2.0, z: -10.9, big: 1 }, { x: 4.5, z: -10.9, big: 0 },
-    { x: 10.9, z: -6.5, big: 0 }, { x: 10.9, z: 0.5, big: 1 }, { x: 10.9, z: 6.5, big: 0 },
-    { x: -10.9, z: -4.0, big: 0 }, { x: -10.9, z: 3.0, big: 0 },
-    { x: -6.0, z: 16.2, big: 1 }, { x: 5.0, z: 16.0, big: 0 },
-    { x: 12.0, z: 16.4, big: 1 }, { x: -13.0, z: 15.8, big: 0 },
-    { x: 16.5, z: -2.5, big: 1 }, { x: 17.5, z: 4.5, big: 0 },  // 開けた東側の奥
-  ],
+  get TREES() { return LAYOUT.trees; },
+  get STREET_TREES() { return LAYOUT.streetTrees; },
+  get BENCH_Z() { return LAYOUT.benchZ; },
+  get BENCHES_X() { return LAYOUT.benches.map(b => b.x); },
+  get BED() { return LAYOUT.ground.beds.treeBed; },
+  get WBED() { return LAYOUT.ground.beds.westBed; },
+  get FENCE() { return LAYOUT.ground.fence; },
+  get MANHOLE() { return LAYOUT.ground.manhole; },
+  get PLAZA_R() { return LAYOUT.ground.plaza.r; },
 };
 
 /* ---------- 季節と時間帯と天気 ---------- */
@@ -153,7 +140,7 @@ function buildFloorTex() {
       }
     }
   };
-  for (const tr of L.TREES.concat(L.STREET_TREES)) {
+  for (const tr of LAYOUT.trees.concat(LAYOUT.streetTrees)) {
     const R = tr.big ? 3.4 : 2.5;
     const n = tr.big ? 90 : 55;
     const cx2 = tr.x + 1.9, cz2 = tr.z + 1.4;                  // 影は南東へ
@@ -165,16 +152,19 @@ function buildFloorTex() {
     }
     stampBlob(tr.x + 0.3, tr.z + 0.25, 0.55, 0);               // 幹の接地影
   }
-  for (const bx of L.BENCHES_X) {                               // ベンチの影
+  for (const bench of LAYOUT.benches) {                         // ベンチの影
+    const bx = bench.x;
     const x0 = ((bx - 0.65 - ox) * ppm) | 0, x1 = ((bx + 1.15 - ox) * ppm) | 0;
-    const z0 = ((L.BENCH_Z + 0.3 - oz) * ppm) | 0, z1 = ((L.BENCH_Z + 1.05 - oz) * ppm) | 0;
+    const z0 = ((LAYOUT.benchZ + 0.3 - oz) * ppm) | 0, z1 = ((LAYOUT.benchZ + 1.05 - oz) * ppm) | 0;
     for (let tz = z0; tz <= z1; tz++)
       for (let tx = x0; tx <= x1; tx++) {
         if ((tz === z0 || tz === z1 || tx === x0 || tx === x1) && ((tx + tz) & 1)) continue;
         mask[tz * size + tx] = 1;
       }
   }
-  /* 生け垣の接地影 */
+  /* 生け垣・トイレの接地影（LAYOUTの shadow フィールドから導出。
+     位置を動かせば影も一緒に動く — ただし shadow の矩形自体は
+     移設元の実測値のまま、対象と同じエントリに置いてある） */
   const hedgeShadow = (wx0, wz0, wx1, wz1) => {
     const x0 = ((wx0 - ox) * ppm) | 0, x1 = ((wx1 - ox) * ppm) | 0;
     const z0 = ((wz0 - oz) * ppm) | 0, z1 = ((wz1 - oz) * ppm) | 0;
@@ -184,9 +174,13 @@ function buildFloorTex() {
         mask[tz * size + tx] = 1;
       }
   };
-  hedgeShadow(-9.4, -9.34, 9.4, -8.98);   // 北の生け垣
-  hedgeShadow(9.0, -8.5, 9.34, -1.5);     // 東の生け垣
-  hedgeShadow(-8.8, -6.95, -5.7, -6.3);   // 公衆トイレ（南東側）
+  for (const hd of LAYOUT.hedges) {
+    if (hd.shadow) hedgeShadow(hd.shadow.x1, hd.shadow.z1, hd.shadow.x2, hd.shadow.z2);
+  }
+  if (LAYOUT.structures.toilet.shadow) {
+    const s = LAYOUT.structures.toilet.shadow;
+    hedgeShadow(s.x1, s.z1, s.x2, s.z2);
+  }
 
   /* --- 本体 --- */
   const brickPal = [[172, 116, 92], [158, 102, 82], [178, 128, 102], [148, 94, 76]];
@@ -202,27 +196,22 @@ function buildFloorTex() {
               leafTh: 0.9995, leafCols: [[120, 96, 60]] },
   }[ENV.season];
   /* 雨: 水たまり5箇所（固定座標・広場と平板の上）と、反射に使う暗めの空グレー */
-  const RAIN_PUDDLES = [
-    { x: 1.2, z: 2.0, rx: 1.1, rz: 0.6 },
-    { x: -4.5, z: 4.4, rx: 0.8, rz: 0.5 },
-    { x: 5.8, z: -3.2, rx: 0.9, rz: 0.5 },
-    { x: -2.2, z: -5.6, rx: 0.7, rz: 0.4 },
-    { x: 7.4, z: 5.9, rx: 0.6, rz: 0.4 },
-  ];
+  const RAIN_PUDDLES = LAYOUT.ground.puddles;
   const PUDDLE_SKY = {
     morning: [141, 144, 150], day: [147, 151, 156],
     dusk: [121, 104, 99], night: [32, 37, 52],
   }[ENV.mode];
   /* 木の近くほど落ち葉が濃い（秋） */
-  const allTrees = L.TREES.concat(L.STREET_TREES);
+  const allTrees = LAYOUT.trees.concat(LAYOUT.streetTrees);
   const nearTree = (x, z) => {
     let m = 99;
     for (const tr of allTrees) m = Math.min(m, Math.hypot(x - tr.x, z - tr.z));
     return m;
   };
-  const inWBED = (x, z) => x > L.WBED.x1 && x < L.WBED.x2 && z > L.WBED.z1 && z < L.WBED.z2;
+  const WBED = LAYOUT.ground.beds.westBed;
+  const inWBED = (x, z) => x > WBED.x1 && x < WBED.x2 && z > WBED.z1 && z < WBED.z2;
   const nearWBED = (x, z, m) =>
-    x > L.WBED.x1 - m && x < L.WBED.x2 + m && z > L.WBED.z1 - m && z < L.WBED.z2 + m;
+    x > WBED.x1 - m && x < WBED.x2 + m && z > WBED.z1 - m && z < WBED.z2 + m;
 
   for (let tz = 0; tz < size; tz++) {
     const wz = (tz + 0.5) / ppm + oz;
@@ -234,12 +223,13 @@ function buildFloorTex() {
 
       if (border > 10.0) {
         /* --- 園外: 縁石 → 植樹帯の芝生 → 車道 → 歩道 → 緑地帯 --- */
-        const gatePath = wz > 10.0 && Math.abs(wx) < 1.5;   // 入口前の通路
-        if (wx > 15.2 && wx < 17.2 && wz > -0.5 && wz < 8.5) {
+        const gatePath = wz > LAYOUT.ground.gatePath.z1 && Math.abs(wx) < LAYOUT.ground.gate.x2;   // 入口前の通路
+        const PK = LAYOUT.ground.parking;
+        if (wx > PK.x1 && wx < PK.x2 && wz > PK.z1 && wz < PK.z2) {
           /* コンビニ前の駐車場（白線つき） */
           const t = 150 + (n - 0.5) * 9;
           col = [t, t - 1, t - 2];
-          if ((Math.abs(wz - 2.3) < 0.05 || Math.abs(wz - 5.3) < 0.05) && n > 0.3)
+          if ((Math.abs(wz - PK.lineZ[0]) < 0.05 || Math.abs(wz - PK.lineZ[1]) < 0.05) && n > 0.3)
             col = [212, 214, 212];
         } else if (border < 10.42) {
           const t = 176 + (n - 0.5) * 10;
@@ -247,7 +237,7 @@ function buildFloorTex() {
           const alongJ = Math.abs(wx) > Math.abs(wz)
             ? Math.abs(wz * 24 % 48) < 2 : Math.abs(wx * 24 % 48) < 2;
           if (alongJ) col = [150, 146, 138];
-        } else if (gatePath && wz < 14.2) {
+        } else if (gatePath && wz < LAYOUT.ground.gatePath.z2) {
           const t = 186 + (n - 0.5) * 9;
           col = [t + 2, t - 2, t - 12];
           if ((wz * 24 % 24) < 1.2) col = [156, 152, 142];
@@ -292,28 +282,29 @@ function buildFloorTex() {
         }
       } else {
         const r = Math.hypot(wx, wz);
-        const dBed = Math.hypot(wx - L.BED.x, wz - L.BED.z);
+        const BED = LAYOUT.ground.beds.treeBed;
+        const dBed = Math.hypot(wx - BED.x, wz - BED.z);
 
-        if (dBed < L.BED.r - 0.13) {
+        if (dBed < BED.r - 0.13) {
           /* 植え込みの土 */
           const t = 108 + (n - 0.5) * 22;
           col = [t + 6, t - 12, t - 36];
           if (n > 0.96) col = [86, 68, 50];
-        } else if (dBed < L.BED.r + 0.12) {
+        } else if (dBed < BED.r + 0.12) {
           /* 縁石 */
           col = [176, 170, 158];
-          if (Math.abs((Math.atan2(wz - L.BED.z, wx - L.BED.x) * L.BED.r * 24) % 12) < 1.4)
+          if (Math.abs((Math.atan2(wz - BED.z, wx - BED.x) * BED.r * 24) % 12) < 1.4)
             col = [140, 134, 124];
         } else if (inWBED(wx, wz)) {
           const t = 106 + (n - 0.5) * 22;
           col = [t + 6, t - 12, t - 36];
         } else if (nearWBED(wx, wz, 0.13)) {
           col = [176, 170, 158];
-        } else if (wz < -9.15 && wz > -L.FENCE - 0.2) {
+        } else if (wz < LAYOUT.ground.northSoil.z1 && wz > -LAYOUT.ground.fence - 0.2) {
           /* 北側フェンス際の植栽帯の土 */
           const t = 98 + (n - 0.5) * 20;
           col = [t + 4, t - 12, t - 32];
-        } else if (r < L.PLAZA_R) {
+        } else if (r < LAYOUT.ground.plaza.r) {
           /* --- レンガの円形広場 --- */
           const ring = r / 0.28;
           const ir = ring | 0;
@@ -327,7 +318,7 @@ function buildFloorTex() {
             const b = brickPal[(hash2(ir * 7, is * 13) * 4) | 0];
             const d2 = (n - 0.5) * 14;
             /* 外周ほどわずかに色あせる */
-            const age = 1 - (r / 5.68) * 0.07;
+            const age = 1 - (r / LAYOUT.ground.plaza.r) * 0.07;
             col = [(b[0] + d2) * age, (b[1] + d2) * age, (b[2] + d2) * age];
             if (n > 0.985) col = [b[0] - 26, b[1] - 24, b[2] - 20]; // 欠け
           }
@@ -355,7 +346,7 @@ function buildFloorTex() {
         }
 
         /* マンホール */
-        const dm = Math.hypot(wx - L.MANHOLE.x, wz - L.MANHOLE.z);
+        const dm = Math.hypot(wx - LAYOUT.ground.manhole.x, wz - LAYOUT.ground.manhole.z);
         if (dm < 0.48) {
           if (dm > 0.42) col = [146, 142, 134];
           else if (dm > 0.36) col = [104, 102, 96];
@@ -365,7 +356,7 @@ function buildFloorTex() {
           }
         }
         /* 落ち葉のかけら（季節で量と色が変わる。秋は木の下に積もる） */
-        if (r > 0.6 && r < 9.8 && dBed > L.BED.r + 0.2) {
+        if (r > 0.6 && r < 9.8 && dBed > BED.r + 0.2) {
           let th = SG.leafTh;
           if (ENV.season === "autumn" && nearTree(wx, wz) < 4.5) th -= 0.03;
           if (n > th)

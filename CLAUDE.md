@@ -21,9 +21,10 @@ SNSなど情報過多に疲れたインターネットユーザーに、**実際
 pixel-park/
   index.html        入園ゲート・canvas(480×270)・歩行ボタン
   style.css         pixelated拡大・UI・overscroll対策（消すな）
-  js/assets3d.js    全ドット絵素材の手続き生成 + 配置定数 L
+  js/layout3d.js    公園と周辺の配置の唯一の設計図（定数 LAYOUT）
+  js/assets3d.js    全ドット絵素材の手続き生成。LAYOUTを参照して地面の焼き込み影を作る
   js/render3d.js    ソフトウェアレンダラ R3
-  js/park3d.js      シーン組立・移動・入力・環境音・ループ
+  js/park3d.js      シーン組立・移動・入力・環境音・ループ。LAYOUTを参照してシーンを組む
   v1/               旧・横スクロール2D版（せたも風・4時間帯・豊かな音風景）
 ```
 
@@ -55,7 +56,15 @@ pixel-park/
 3. **html/body の `overscroll-behavior:none` と `touch-action:none` を消すな。**
    ドラッグ見回しがブラウザの「戻るスワイプ／引っ張って更新」に化けて
    ページ遷移してしまう（「出口を出るとトップページに移動」の正体）
-4. **物の座標を動かしたら L と焼き込み影とコライダの3箇所を揃える**
+4. **配置はすべて `js/layout3d.js` の `LAYOUT` が単一の真実。** 影・コライダ・シーン・
+   座席アンカーはそこから自動導出されるので、再設計は layout3d.js の編集だけで完結する
+   （旧ルール「Lと影とコライダの3箇所を手で揃える」は廃止。`L` は assets3d.js に残る
+   互換エイリアスなので新規参照は使わないこと）。新しい種類の物を足すときは
+   park3d.js の型別レジストリ（buildScene内の建物ループ・structures分岐・
+   props の PROP_SPRITE レジストリ）に builder を1つ足す。
+   生け垣・トイレの地面焼き込み影だけは例外で、`LAYOUT.hedges[].shadow` /
+   `LAYOUT.structures.toilet.shadow` に実測値をそのまま持たせてある
+   （壁ジオメトリからの自動計算ではない。動かした場合は影も手で合わせる）
 5. ベンチの向き: 背もたれは北（生け垣側、-z）、座面は南（広場側、+z）。
    一度逆に作って気づかなかった
 6. **壁は必ず `pushWall()` 経由で登録する（直接 WALLS.push しない）。**

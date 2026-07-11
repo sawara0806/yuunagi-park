@@ -52,50 +52,49 @@ function pushWall(w, maxSeg) {
   }
 }
 
+/* 建物・コンビニ共通: 正面(x1,z1)-(x2,z2) + sideDepth（正面の進行方向を-90°回転した
+   法線方向への符号つき奥行き）から側面壁を自動生成する。sides で片側だけにも絞れる
+   （南の家並み2棟は道側が開いているため）。LAYOUT.buildings / structures.konbini が使う */
+function addBuildingWalls(b, T) {
+  pushWall({ x1: b.x1, z1: b.z1, x2: b.x2, z2: b.z2, h: b.h, tex: T[b.tex], texLen: b.texLen });
+  if (b.sideDepth === undefined) return;
+  const dx = b.x2 - b.x1, dz = b.z2 - b.z1, len = Math.hypot(dx, dz);
+  const nx = dz / len, nz = -dx / len;
+  const ox = nx * b.sideDepth, oz = nz * b.sideDepth;
+  const sideTex = T[b.sideTex];
+  const mkSide = (x, z) => pushWall({ x1: x, z1: z, x2: x + ox, z2: z + oz, h: b.h, tex: sideTex });
+  if (!b.sides || b.sides === "x1") mkSide(b.x1, b.z1);
+  if (!b.sides || b.sides === "x2") mkSide(b.x2, b.z2);
+}
+
 function buildScene() {
   const T = ASSETS.tex, S = ASSETS.spr;
   WALLS = []; BOXES = []; SPRITES3 = []; COLLIDERS = [];
 
   /* --- 奥の建物（正面と、奥へ戻る側面。角がペラペラに見えない）
          東側は建物を置かず、遠くの山なみとビル群へ視界が抜ける --- */
-  pushWall({ x1: -13.5, z1: -14.5, x2: 1.5, z2: -14.5, h: 6.8, tex: T.aptCream });
-  pushWall({ x1: -13.5, z1: -14.5, x2: -13.5, z2: -21, h: 6.8, tex: T.sideCream });
-  pushWall({ x1: 1.5, z1: -14.5, x2: 1.5, z2: -21, h: 6.8, tex: T.sideCream });
-  pushWall({ x1: 3.5, z1: -18, x2: 15.5, z2: -18, h: 7.4, tex: T.aptWhite });
-  pushWall({ x1: 3.5, z1: -18, x2: 3.5, z2: -24.5, h: 7.4, tex: T.sideWhite });
-  pushWall({ x1: 15.5, z1: -18, x2: 15.5, z2: -24.5, h: 7.4, tex: T.sideWhite });
-  pushWall({ x1: -14.8, z1: 4.5, x2: -14.8, z2: -5.5, h: 5.4, tex: T.house });
-  pushWall({ x1: -14.8, z1: 4.5, x2: -20, z2: 4.5, h: 5.4, tex: T.sideGray });
-  pushWall({ x1: -14.8, z1: -5.5, x2: -20, z2: -5.5, h: 5.4, tex: T.sideGray });
-  pushWall({ x1: -18, z1: 24, x2: 0, z2: 24, h: 5.6, tex: T.housesFar });
-  pushWall({ x1: -18, z1: 24, x2: -18, z2: 30, h: 5.6, tex: T.sideGray });
-  pushWall({ x1: 1, z1: 24.5, x2: 19, z2: 24.5, h: 5.6, tex: T.housesFar });
-  pushWall({ x1: 19, z1: 24.5, x2: 19, z2: 30, h: 5.6, tex: T.sideGray });
-  /* 東の遠くに低い家並み（霞んで見える） */
-  pushWall({ x1: 25, z1: -10, x2: 25, z2: 10, h: 4.8, tex: T.housesFar, texLen: 18 });
+  for (const b of LAYOUT.buildings) addBuildingWalls(b, T);
   /* 南の通り沿いの電柱と電線 */
-  SPRITES3.push({ x: -8, z: 14.1, img: ASSETS.spr.pole.img, w: ASSETS.spr.pole.w, h: ASSETS.spr.pole.h });
-  SPRITES3.push({ x: 8, z: 14.1, img: ASSETS.spr.pole.img, w: ASSETS.spr.pole.w, h: ASSETS.spr.pole.h });
-  pushWall({ x1: -8, z1: 14.1, x2: 8, z2: 14.1, h: 6.55, y0: 5.25, tex: T.wires, texLen: 16 });
+  for (const p of LAYOUT.wires.poles)
+    SPRITES3.push({ x: p.x, z: p.z, img: S.pole.img, w: S.pole.w, h: S.pole.h });
+  { const w = LAYOUT.wires.wire;
+    pushWall({ x1: w.x1, z1: w.z1, x2: w.x2, z2: w.z2, h: w.h, y0: w.y0, tex: T[w.tex], texLen: w.texLen }); }
 
   /* --- 生け垣（北側・ベンチの後ろ / 東側） --- */
-  pushWall({ x1: -9.4, z1: -9.35, x2: 9.4, z2: -9.35, h: 1.25, tex: T.hedge, texLen: 2 });
-  pushWall({ x1: 9.35, z1: -8.5, x2: 9.35, z2: -1.5, h: 1.25, tex: T.hedge, texLen: 2 });
+  for (const hd of LAYOUT.hedges)
+    pushWall({ x1: hd.x1, z1: hd.z1, x2: hd.x2, z2: hd.z2, h: hd.h, tex: T[hd.tex], texLen: hd.texLen });
 
   /* --- 金網フェンス（南に入口の切れ目） --- */
-  const F = L.FENCE;
-  pushWall({ x1: -F, z1: -F, x2: F, z2: -F, h: 1.5, tex: T.fence, texLen: 2 });
-  pushWall({ x1: F, z1: -F, x2: F, z2: F, h: 1.5, tex: T.fence, texLen: 2 });
-  pushWall({ x1: -F, z1: F, x2: -F, z2: -F, h: 1.5, tex: T.fence, texLen: 2 });
-  pushWall({ x1: -F, z1: F, x2: -1.5, z2: F, h: 1.5, tex: T.fence, texLen: 2 });
-  pushWall({ x1: 1.5, z1: F, x2: F, z2: F, h: 1.5, tex: T.fence, texLen: 2 });
-  pushWall({ x1: 0.5, z1: -9.7, x2: 6.5, z2: -9.7, h: 1.8, tex: T.mesh, texLen: 2 });
+  for (const fc of LAYOUT.fences)
+    pushWall({ x1: fc.x1, z1: fc.z1, x2: fc.x2, z2: fc.z2, h: fc.h, tex: T[fc.tex], texLen: fc.texLen });
+  for (const mp of LAYOUT.meshPanels)
+    pushWall({ x1: mp.x1, z1: mp.z1, x2: mp.x2, z2: mp.z2, h: mp.h, tex: T[mp.tex], texLen: mp.texLen });
 
   /* --- ベンチ列（箱の組み合わせ。裏から見ても正しい） --- */
   const woodTop = { colS: "rgb(172,138,98)", colGap: "rgb(104,80,60)", gapAxis: "z", boards: 3 };
   const thinTop = { colS: "rgb(150,116,82)" };
-  for (const bx of L.BENCHES_X) {
-    const zb = L.BENCH_Z;
+  for (const bench of LAYOUT.benches) {
+    const bx = bench.x, zb = LAYOUT.benchZ;
     /* 背もたれは生け垣側(北=-z)、座面は広場側(南=+z) */
     BOXES.push({ x1: bx - 0.9, x2: bx + 0.9, z1: zb - 0.20, z2: zb - 0.14,
                  y0: 0.44, y1: 0.83, side: T.benchBack, top: thinTop });
@@ -108,17 +107,18 @@ function buildScene() {
     COLLIDERS.push({ x: bx, z: zb, r: 0.85 });
   }
   /* 公園の掲示板（表と裏がある薄い箱） */
-  BOXES.push({ x1: 6.6, x2: 7.55, z1: 8.38, z2: 8.46,
-               y0: 0, y1: 1.65, side: T.sign, sideN: T.sign, sideS: T.signBack,
-               sideEnd: T.leg });
-  COLLIDERS.push({ x: 7.1, z: 8.42, r: 0.5 });
+  { const sn = LAYOUT.structures.sign;
+    BOXES.push({ x1: sn.x1, x2: sn.x2, z1: sn.z1, z2: sn.z2,
+                 y0: sn.y0, y1: sn.y1, side: T[sn.texFront], sideN: T[sn.texFront],
+                 sideS: T[sn.texBack], sideEnd: T[sn.texEnd] });
+    COLLIDERS.push({ x: sn.collider.x, z: sn.collider.z, r: sn.collider.r }); }
 
   /* --- 公衆トイレ（北西の角） --- */
-  BOXES.push({ x1: -9.0, x2: -6.2, z1: -9.2, z2: -7.0, y0: 0, y1: 2.6,
-               sideS: T.toiletFront, sideN: T.toiletBack, sideE: T.toiletSide,
-               sideW: T.toiletSide, side: T.toiletFront, top: { colS: "rgb(96,92,88)" } });
-  COLLIDERS.push({ x: -8.3, z: -8.1, r: 1.05 });
-  COLLIDERS.push({ x: -6.9, z: -8.1, r: 1.05 });
+  { const tl = LAYOUT.structures.toilet;
+    BOXES.push({ x1: tl.x1, x2: tl.x2, z1: tl.z1, z2: tl.z2, y0: tl.y0, y1: tl.y1,
+                 sideS: T[tl.texS], sideN: T[tl.texN], sideE: T[tl.texE],
+                 sideW: T[tl.texW], side: T[tl.texS], top: { colS: "rgb(96,92,88)" } });
+    for (const c of tl.colliders) COLLIDERS.push({ x: c.x, z: c.z, r: c.r }); }
 
   /* --- 園内の木（クスノキ=大 / ケヤキ=小。3フレームの揺れ付き） --- */
   const smalls = [S.treeSm1, S.treeSm2, S.treeSm3];
@@ -130,101 +130,85 @@ function buildScene() {
                     ph: (i * 2.7) % 4, w: sp.w, h: sp.h });
     if (collide) COLLIDERS.push({ x: tr.x, z: tr.z, r: tr.big ? 0.6 : 0.45 });
   };
-  L.TREES.forEach((tr, i) => pushTree(tr, i, true));
+  LAYOUT.trees.forEach((tr, i) => pushTree(tr, i, true));
   /* --- 街路樹と南の緑地帯（園外の自然） --- */
-  L.STREET_TREES.forEach((tr, i) => pushTree(tr, i + 5, false));
+  LAYOUT.streetTrees.forEach((tr, i) => pushTree(tr, i + 5, false));
 
-  /* --- 大木の根元の植え込み --- */
-  for (let i = 0; i < 11; i++) {
-    const a = (i / 11) * 6.283 + 0.3;
-    const rr = 1.15 + (i % 3) * 0.42;
-    const sp = S.liriope[i % 3];
-    SPRITES3.push({
-      x: L.BED.x + Math.cos(a) * rr,
-      z: L.BED.z + Math.sin(a) * rr * 0.9,
-      img: sp.img, w: sp.w, h: sp.h,
-    });
-  }
-  COLLIDERS.push({ x: L.BED.x, z: L.BED.z, r: L.BED.r - 0.1 });
+  /* --- 大木の根元の植え込み（ヤブラン環。生成パラメータは treeBed 側に持たせてある） --- */
+  const treeBed = LAYOUT.ground.beds.treeBed;
+  { const ring = treeBed.liriopeRing;
+    for (let i = 0; i < ring.n; i++) {
+      const a = (i / ring.n) * 6.283 + ring.phase;
+      const rr = ring.rBase + (i % 3) * ring.rStep;
+      const sp = S.liriope[i % 3];
+      SPRITES3.push({
+        x: treeBed.x + Math.cos(a) * rr,
+        z: treeBed.z + Math.sin(a) * rr * ring.zSquash,
+        img: sp.img, w: sp.w, h: sp.h,
+      });
+    } }
+  COLLIDERS.push({ x: treeBed.x, z: treeBed.z, r: treeBed.r - 0.1 });
 
-  /* --- 西側の花壇（サツキの花入り） --- */
-  for (let i = 0; i < 5; i++) {
-    const sp = i % 2 ? S.azalea[i % 2 ? (i >> 1) % 2 : 0] : S.shrub[i % 2];
-    SPRITES3.push({ x: -8.55, z: -3.4 + i * 1.9, img: sp.img, w: sp.w, h: sp.h });
-  }
-  for (let i = 0; i < 4; i++) {
-    const sp = S.liriope[(i + 1) % 3];
-    SPRITES3.push({ x: -8.0, z: -2.4 + i * 2.0, img: sp.img, w: sp.w, h: sp.h });
-  }
-  COLLIDERS.push({ x: -8.5, z: -3, r: 1.1 });
-  COLLIDERS.push({ x: -8.5, z: 0.5, r: 1.1 });
-  COLLIDERS.push({ x: -8.5, z: 4, r: 1.1 });
+  /* --- 西側の花壇（低木/サツキは LAYOUT.props 側、縁のヤブラン列は生成パラメータ） --- */
+  const westBed = LAYOUT.ground.beds.westBed;
+  { const row = westBed.liriopeRow;
+    for (let i = 0; i < row.n; i++) {
+      const sp = S.liriope[(i + row.palOffset) % 3];
+      SPRITES3.push({ x: row.x, z: row.z0 + i * row.dz, img: sp.img, w: sp.w, h: sp.h });
+    } }
+  for (const c of westBed.colliders) COLLIDERS.push({ x: c.x, z: c.z, r: c.r });
 
-  /* --- 園内の隅の低木・入口まわり --- */
-  for (const [sx, sz, i] of [[8.6, -8.6, 0], [2.4, 9.15, 0], [-8.9, 8.8, 1]]) {
-    const sp = S.shrub[i];
-    SPRITES3.push({ x: sx, z: sz, img: sp.img, w: sp.w, h: sp.h });
-    COLLIDERS.push({ x: sx, z: sz, r: 0.5 });
+  /* --- 単体スプライトの小物（隅の低木・入口まわり・雑草など）を type レジストリで展開 --- */
+  const PROP_SPRITE = {
+    lamp: () => S.lamp,
+    fountain: () => S.fountain,
+    bollard: () => S.bollard,
+    planter: e => S.planter[e.variant || 0],
+    shrub: e => S.shrub[e.variant || 0],
+    azalea: e => S.azalea[e.variant || 0],
+    weed: e => S.weed[e.variant || 0],
+  };
+  for (const p of LAYOUT.props) {
+    const sp = PROP_SPRITE[p.type](p);
+    SPRITES3.push({ x: p.x, z: p.z, img: sp.img, w: sp.w, h: sp.h });
+    if (p.r) COLLIDERS.push({ x: p.x, z: p.z, r: p.r });
   }
-  SPRITES3.push({ x: -1.25, z: 9.55, img: S.bollard.img, w: S.bollard.w, h: S.bollard.h });
-  SPRITES3.push({ x: 1.25, z: 9.55, img: S.bollard.img, w: S.bollard.w, h: S.bollard.h });
-  COLLIDERS.push({ x: -1.25, z: 9.55, r: 0.28 });
-  COLLIDERS.push({ x: 1.25, z: 9.55, r: 0.28 });
-  SPRITES3.push({ x: -7.0, z: 7.0, img: S.fountain.img, w: S.fountain.w, h: S.fountain.h });
-  COLLIDERS.push({ x: -7.0, z: 7.0, r: 0.45 });
-  /* 公園灯 */
-  SPRITES3.push({ x: 4.6, z: 3.6, img: S.lamp.img, w: S.lamp.w, h: S.lamp.h });
-  COLLIDERS.push({ x: 4.6, z: 3.6, r: 0.25 });
-  /* 入口わきの花壇プランター */
-  SPRITES3.push({ x: -2.7, z: 8.95, img: S.planter[0].img, w: S.planter[0].w, h: S.planter[0].h });
-  SPRITES3.push({ x: 3.6, z: 9.0, img: S.planter[1].img, w: S.planter[1].w, h: S.planter[1].h });
-  COLLIDERS.push({ x: -2.7, z: 8.95, r: 0.5 });
-  COLLIDERS.push({ x: 3.6, z: 9.0, r: 0.5 });
-
-  /* --- 道ばたの雑草（園内の隅とフェンス沿い・園外） --- */
-  const weeds = [
-    [9.55, 8.2], [9.5, 3.1], [9.55, -3.4], [-9.5, 7.4], [-9.55, -1.2], [-9.5, -6.8],
-    [3.2, 9.5], [-4.8, 9.55], [6.9, 9.5], [-6.6, 9.5],
-    [-3.9, 4.65], [5.05, 1.2], [8.9, -9.1],
-    [10.15, 5.5], [10.2, -2.0], [-10.15, 1.0], [-10.2, -7.5], [2.2, 10.2], [-2.6, 10.15],
-  ];
-  weeds.forEach(([wx, wz], i) => {
-    const sp = S.weed[i % 3];
-    SPRITES3.push({ x: wx, z: wz, img: sp.img, w: sp.w, h: sp.h });
-  });
 
   /* 鳩（ついばみアニメ用にリストを持つ） */
   PIGEONS = [];
-  [[0.6, 1.4, 0], [-1.9, -0.9, 1], [1.3, -2.4, 2]].forEach(([px, pz, i]) => {
+  LAYOUT.critters.pigeons.forEach((pg, i) => {
     const sp = S.pigeon[i];
-    const ent = { x: px, z: pz, img: sp.frames[0], frames: sp.frames,
+    const ent = { x: pg.x, z: pg.z, img: sp.frames[0], frames: sp.frames,
                   w: sp.w, h: sp.h, state: 0, t: 1 + i * 1.3 };
     SPRITES3.push(ent);
     PIGEONS.push(ent);
   });
 
   /* ネコ（ベンチの上で丸くなる茶トラ / 木陰に座るハチワレ）
-     2フレームの小さなアニメ: 寝ネコ=呼吸、座りネコ=瞬き＋しっぽ */
+     2フレームの小さなアニメ: 寝ネコ=呼吸、座りネコ=瞬き＋しっぽ。
+     寝ネコは cat:"sleep" タグのついたベンチから位置を導出する */
   CAT_ANIMS = [];
-  const sleepEnt = { x: 1.6, z: L.BENCH_Z - 0.02, y0: 0.44,
+  const sleepBench = LAYOUT.benches.find(b => b.cat === "sleep");
+  const sitPos = LAYOUT.critters.catSit;
+  const sleepEnt = { x: sleepBench.x, z: LAYOUT.benchZ - 0.02, y0: 0.44,
                      img: S.catSleep.frames[0], frames: S.catSleep.frames,
                      w: S.catSleep.w, h: S.catSleep.h, kind: "sleep", fi: 0, animT: 0.8 };
-  const sitEnt = { x: 4.2, z: 1.1,
+  const sitEnt = { x: sitPos.x, z: sitPos.z,
                    img: S.catSit.frames[0], frames: S.catSit.frames,
                    w: S.catSit.w, h: S.catSit.h, kind: "sit", fi: 0, animT: 2.5 };
   SPRITES3.push(sleepEnt, sitEnt);
   CAT_ANIMS.push(sleepEnt, sitEnt);
-  COLLIDERS.push({ x: 4.2, z: 1.1, r: 0.3 });
-  CATS = [{ x: 4.2, z: 1.1, awake: true }, { x: 1.6, z: L.BENCH_Z, awake: false }];
+  COLLIDERS.push({ x: sitPos.x, z: sitPos.z, r: 0.3 });
+  CATS = [{ x: sitPos.x, z: sitPos.z, awake: true }, { x: sleepBench.x, z: LAYOUT.benchZ, awake: false }];
 
   /* --- コンビニ（東の開けた側・園外） --- */
-  pushWall({ x1: 17.2, z1: -0.5, x2: 17.2, z2: 8.5, h: 3.4, tex: T.konbini });
-  pushWall({ x1: 17.2, z1: -0.5, x2: 23, z2: -0.5, h: 3.4, tex: T.konbiniSide });
-  pushWall({ x1: 17.2, z1: 8.5, x2: 23, z2: 8.5, h: 3.4, tex: T.konbiniSide });
+  addBuildingWalls(LAYOUT.structures.konbini, T);
 
   /* --- 喫煙所（コンビニの南隣・園外） --- */
-  pushWall({ x1: 15.9, z1: 9.8, x2: 18.3, z2: 9.8, h: 1.7, tex: T.smokePanel });
-  SPRITES3.push({ x: 17.1, z: 9.3, img: S.ashtray.img, w: S.ashtray.w, h: S.ashtray.h });
+  { const sm = LAYOUT.structures.smokingArea;
+    pushWall({ x1: sm.panel.x1, z1: sm.panel.z1, x2: sm.panel.x2, z2: sm.panel.z2,
+               h: sm.panel.h, tex: T[sm.panel.tex] });
+    SPRITES3.push({ x: sm.ashtray.x, z: sm.ashtray.z, img: S.ashtray.img, w: S.ashtray.w, h: S.ashtray.h }); }
 }
 
 /* ---------- カメラ・移動（移動と見回しは独立） ---------- */
@@ -244,12 +228,13 @@ function clampSeatedYaw(yaw) {
   return Math.PI + diff;
 }
 
-/* 座席アンカー（P5）: ベンチの座面中心。x=1.6のベンチは寝ている猫(catSleep、buildSceneの
-   `x: 1.6, z: L.BENCH_Z - 0.02` を参照)が中央に乗っているため、その左隣(x=1.05)に座る。
-   猫の座標を動かしたらここも合わせて直すこと */
-const BENCH_SEATS = L.BENCHES_X.map(bx => ({
-  x: bx === 1.6 ? 1.05 : bx,
-  z: L.BENCH_Z + 0.09,
+/* 座席アンカー（P5）: ベンチの座面中心。cat:"sleep" タグのベンチは寝ネコが中央に
+   乗っているため、その左隣（0.55m猫よけ）に座る。ベンチの座標を動かしても
+   このオフセットだけで自動的についてくる */
+const CAT_AVOID_DX = 0.55;
+const BENCH_SEATS = LAYOUT.benches.map(bench => ({
+  x: bench.cat === "sleep" ? bench.x - CAT_AVOID_DX : bench.x,
+  z: LAYOUT.benchZ + 0.09,
 }));
 const SEAT_RANGE = 2.0;   // この距離(m)以内で着席可・着席UI表示
 
