@@ -320,7 +320,6 @@ function leavePark() {
   document.getElementById("entrance").classList.remove("closed");
   if (document.exitPointerLock) document.exitPointerLock();
   AUDIO3.setOn(false);
-  document.getElementById("sound-btn").classList.remove("active");
   /* 次の入園に備えて入口へ戻しておく */
   CAM.x = 0; CAM.z = 5.8; CAM.yaw = 0; CAM.hor = R3.HOR_BASE;
   INPUT.fwd = INPUT.back = INPUT.sLeft = INPUT.sRight = false;
@@ -780,6 +779,10 @@ window.addEventListener("keydown", ev => {
   const k = KEYMAP[ev.key];
   if (k) { INPUT[k] = true; ev.preventDefault(); }
   if (ev.key === " " && INSIDE) { ev.preventDefault(); toggleSit(); }
+  if ((ev.key === "m" || ev.key === "M") && INSIDE) {
+    if (!AUDIO3.ctx) { try { AUDIO3.init(); } catch (err) { return; } }
+    AUDIO3.setOn(!AUDIO3.on);
+  }
 });
 window.addEventListener("keyup", ev => {
   const k = KEYMAP[ev.key];
@@ -1006,21 +1009,17 @@ document.getElementById("enter-btn").addEventListener("click", () => {
   }
   document.getElementById("entrance").classList.add("closed");
   INSIDE = true;
-  try {
-    AUDIO3.init();
-    AUDIO3.setOn(true);
-    document.getElementById("sound-btn").classList.add("active");
-  } catch (err) { /* 音が使えなくても入園できる */ }
+  if (document.getElementById("sound-check").checked) {
+    try {
+      AUDIO3.init();
+      AUDIO3.setOn(true);
+    } catch (err) { /* 音が使えなくても入園できる */ }
+  }
 });
 document.getElementById("rain-btn").addEventListener("click", () => {
   ENV.weather = ENV.weather === "rain" ? "clear" : "rain";
   rebuildWorld();
   document.getElementById("rain-btn").classList.toggle("active", ENV.weather === "rain");
-});
-document.getElementById("sound-btn").addEventListener("click", () => {
-  try { AUDIO3.init(); } catch (err) { return; }
-  AUDIO3.setOn(!AUDIO3.on);
-  document.getElementById("sound-btn").classList.toggle("active", AUDIO3.on);
 });
 
 /* 検証・デバッグ用フック */

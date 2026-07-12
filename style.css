@@ -34,6 +34,12 @@ body {
 }
 #entrance p { font-size: clamp(.8rem, 2.4vw, 1rem); line-height: 2.3; opacity: .88; }
 #entrance .controls { font-size: clamp(.7rem, 2vw, .85rem); opacity: .6; line-height: 2; }
+#sound-opt {
+  font-family: inherit; font-size: clamp(.7rem, 2vw, .85rem); color: #e8e4d8;
+  letter-spacing: .05em; opacity: .85; cursor: pointer;
+  display: flex; align-items: center; gap: .5em;
+}
+#sound-opt input { accent-color: #e8e4d8; cursor: pointer; }
 #enter-btn {
   margin-top: .6rem; padding: .9em 2.8em;
   font-family: inherit; font-size: 1rem; letter-spacing: .35em; text-indent: .35em;
