@@ -1692,7 +1692,7 @@ function sprRainDrop() {
     sh.pxRaw(0, y, col, a);
     sh.pxRaw(1, y, col, a * 0.6);
   }
-  return { img: sh.c, w: 0.03, h: 0.4 };
+  return { img: sh.c, w: 0.02, h: 0.28 };
 }
 function sprSplash() {
   /* 雨粒が着地した波紋: 6×3pxの薄い白い輪（pxRaw） */

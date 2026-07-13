@@ -581,7 +581,12 @@ requestAnimationFrame(frame);
 
 document.getElementById("enter-btn").addEventListener("click", () => {
   const env = envFromDate(new Date());
-  const wetRoll = Math.random() < 0.25 ? "rain" : "clear";
+  /* URLに ?weather=rain / ?weather=clear があれば抽選を上書きして必ずその天気で
+     入園する（雨の挙動を確認するための開発・検証用。園内UIは増やさない） */
+  const forced = new URLSearchParams(location.search).get("weather");
+  const wetRoll = (forced === "rain" || forced === "clear")
+    ? forced
+    : (Math.random() < 0.25 ? "rain" : "clear");
   if (env.season !== ENV.season || env.mode !== ENV.mode || wetRoll !== ENV.weather) {
     ENV.season = env.season;
     ENV.mode = env.mode;
