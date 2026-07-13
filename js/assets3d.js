@@ -28,16 +28,85 @@ const MODE_GRADE = {
   dusk:    { mul: [1.10, 0.87, 0.74], tint: [250, 148, 92], amt: 0.18 },
   night:   { mul: [0.40, 0.46, 0.62], tint: [52, 72, 118], amt: 0.28 },
 };
-/* 雨: MODE_GRADEの後にさらに重ねる曇天寄りのグレーディング */
-const RAIN_GRADE = { mul: [0.84, 0.86, 0.90], tint: [182, 196, 212], amt: 0.10 };
-const HAZE_MODE = {
-  morning: [228, 216, 198], day: [214, 222, 228],
-  dusk: [210, 158, 126], night: [34, 44, 64],
+/* ============================================================
+   天気レジストリ — 天気で分岐する値はすべてここに集約する。
+   新しい天気（雪・霧など）はエントリを1つ足すだけで、
+   グレーディング／空／雲／霞み／地面の濡れ／粒子／音が一括で切り替わる。
+   読む側は curWeather() 経由で参照し、ENV.weather を直接分岐しない。
+   ============================================================ */
+const WEATHER = {
+  clear: {
+    grade: null,          // モードグレーディングに重ねる追加グレーディング（なし）
+    haze: { morning: [228, 216, 198], day: [214, 222, 228],
+            dusk: [210, 158, 126], night: [34, 44, 64] },
+    farHaze: 62,          // 完全に霞む距離(m)
+    skyTopFill: { morning: "rgb(140,172,210)", day: "rgb(150,196,232)",
+                  dusk: "rgb(88,76,122)", night: "rgb(10,16,38)" },
+    /* 空ストリップのパレット（buildSkyTex）。sun/moonはあるモードだけ描く */
+    sky: {
+      morning: { top: [140, 172, 210], bot: [246, 220, 186],
+                 ridge1: [206, 198, 204], ridge2: [192, 184, 194],
+                 towerA: [190, 192, 202], towerB: [178, 180, 194],
+                 haze: [236, 222, 202], winLit: 0.10,
+                 sun: { x: 0.70, y: 26, r: 9, col: [255, 240, 200], glow: [255, 216, 150] } },
+      day:     { top: [150, 196, 232], bot: [208, 223, 233],
+                 ridge1: [193, 207, 220], ridge2: [180, 196, 211],
+                 towerA: [176, 190, 204], towerB: [164, 178, 194],
+                 haze: [218, 226, 228], winLit: 0 },
+      dusk:    { top: [88, 76, 122], bot: [250, 166, 104],
+                 ridge1: [148, 116, 138], ridge2: [126, 100, 126],
+                 towerA: [128, 104, 128], towerB: [110, 92, 118],
+                 haze: [244, 176, 122], winLit: 0.5,
+                 sun: { x: 0.30, y: 16, r: 12, col: [255, 176, 100], glow: [252, 140, 84] } },
+      night:   { top: [10, 16, 38], bot: [40, 54, 84],
+                 ridge1: [34, 46, 70], ridge2: [28, 40, 62],
+                 towerA: [36, 48, 72], towerB: [30, 42, 64],
+                 haze: [46, 58, 86], winLit: 0.55,
+                 moon: { x: 0.62, y: 34, r: 8 } },
+    },
+    clouds: { n: 13, hi: [246, 250, 252], lo: [225, 233, 240] },
+    showStars: true,      // 夜に星を描くか
+    wetGround: false,     // 地面を濡らす（暗め＋照り返し＋水たまり）か
+    particle: null,       // updateAnimが維持する粒子（"rain" など）
+    audio: { windMul: 1, rainGain: 0, chirpMul: 1, quietBirds: false },
+  },
+  rain: {
+    /* MODE_GRADEの後にさらに重ねる曇天寄りのグレーディング */
+    grade: { mul: [0.84, 0.86, 0.90], tint: [182, 196, 212], amt: 0.10 },
+    haze: { morning: [190, 194, 200], day: [198, 202, 208],
+            dusk: [162, 148, 146], night: [50, 58, 78] },
+    farHaze: 40,
+    skyTopFill: { morning: "rgb(150,156,168)", day: "rgb(158,166,178)",
+                  dusk: "rgb(110,100,118)", night: "rgb(16,20,36)" },
+    /* フラットな灰の階調。太陽・月・星は描かず、山なみ/ビル群もhaze寄りに霞ませる */
+    sky: {
+      morning: { top: [150, 156, 168], bot: [196, 200, 208],
+                 ridge1: [176, 178, 186], ridge2: [166, 170, 180],
+                 towerA: [172, 176, 184], towerB: [162, 168, 178],
+                 haze: [190, 194, 200], winLit: 0.10 },
+      day:     { top: [158, 166, 178], bot: [204, 210, 216],
+                 ridge1: [182, 188, 194], ridge2: [172, 180, 188],
+                 towerA: [178, 184, 192], towerB: [168, 176, 186],
+                 haze: [196, 200, 206], winLit: 0 },
+      dusk:    { top: [110, 100, 118], bot: [168, 144, 138],
+                 ridge1: [142, 132, 138], ridge2: [130, 122, 130],
+                 towerA: [136, 126, 134], towerB: [124, 116, 128],
+                 haze: [158, 144, 142], winLit: 0.35 },
+      night:   { top: [16, 20, 36], bot: [44, 52, 72],
+                 ridge1: [40, 46, 64], ridge2: [34, 40, 58],
+                 towerA: [42, 48, 68], towerB: [36, 44, 62],
+                 haze: [50, 58, 78], winLit: 0.45 },
+    },
+    clouds: { n: 18, hi: [188, 192, 200], lo: [158, 163, 175] },  // 数割増し・灰色
+    showStars: false,
+    wetGround: true,
+    particle: "rain",
+    /* windMul=風量倍率, rainGain=雨音ゲイン, chirpMul=雀の発火確率倍率,
+       quietBirds=true でハト・ヒヨドリ・セミが鳴かない */
+    audio: { windMul: 1.2, rainGain: 0.055, chirpMul: 0.3, quietBirds: true },
+  },
 };
-const HAZE_RAIN = {
-  morning: [190, 194, 200], day: [198, 202, 208],
-  dusk: [162, 148, 146], night: [50, 58, 78],
-};
+const curWeather = () => WEATHER[ENV.weather];
 const isDark = () => ENV.mode === "dusk" || ENV.mode === "night";
 let GRADE_BYPASS = false;   // 空など「モード専用の色」を作るとき true
 function applyGrade(c, g) {
@@ -51,7 +120,8 @@ function applyGrade(c, g) {
 function gradeColor(c) {
   if (GRADE_BYPASS) return c;
   let out = applyGrade(c, MODE_GRADE[ENV.mode]);
-  if (ENV.weather === "rain") out = applyGrade(out, RAIN_GRADE);
+  const wg = curWeather().grade;
+  if (wg) out = applyGrade(out, wg);
   return out;
 }
 
@@ -201,6 +271,8 @@ function buildFloorTex() {
     morning: [141, 144, 150], day: [147, 151, 156],
     dusk: [121, 104, 99], night: [32, 37, 52],
   }[ENV.mode];
+  /* 夜の光だまりの中心＝公園灯（LAYOUT.propsが単一の真実） */
+  const LAMP = LAYOUT.props.find(p => p.type === "lamp");
   /* 木の近くほど落ち葉が濃い（秋） */
   const allTrees = LAYOUT.trees.concat(LAYOUT.streetTrees);
   const nearTree = (x, z) => {
@@ -370,9 +442,9 @@ function buildFloorTex() {
       }
       /* 時間帯グレーディング */
       col = gradeColor(col);
-      /* 夜は公園灯の光だまり */
+      /* 夜は公園灯の光だまり（位置はLAYOUT.propsの公園灯から取る） */
       if (ENV.mode === "night") {
-        const dl = Math.hypot(wx - 4.6, wz - 3.6);
+        const dl = Math.hypot(wx - LAMP.x, wz - LAMP.z);
         if (dl < 2.8) {
           const f = (1 - dl / 2.8) * 0.55;
           col = [col[0] + (255 - col[0]) * f * 0.9,
@@ -380,8 +452,8 @@ function buildFloorTex() {
                  col[2] + (150 - col[2]) * f];
         }
       }
-      /* 雨: 全体を暗く濡らし、まれに照り返しの点＋固定5箇所の水たまり */
-      if (ENV.weather === "rain") {
+      /* 濡れた地面: 全体を暗くし、まれに照り返しの点＋固定5箇所の水たまり */
+      if (curWeather().wetGround) {
         col = [col[0] * 0.90, col[1] * 0.90, col[2] * 0.90];
         if (hash2(tx + 41, tz + 41) < 0.004) col = [col[0] + 22, col[1] + 22, col[2] + 22];
         for (const p of RAIN_PUDDLES) {
@@ -411,48 +483,8 @@ function buildSkyTex() {
   const w = 2325, h = 176;
   const sh = sheetA(w, h);
   const rng = mulberry32(777001);
-  GRADE_BYPASS = true;   // 空の色はモードごとに手で決める
-  const CLEAR = {
-    morning: { top: [140, 172, 210], bot: [246, 220, 186],
-               ridge1: [206, 198, 204], ridge2: [192, 184, 194],
-               towerA: [190, 192, 202], towerB: [178, 180, 194],
-               haze: [236, 222, 202], winLit: 0.10,
-               sun: { x: 0.70, y: 26, r: 9, col: [255, 240, 200], glow: [255, 216, 150] } },
-    day:     { top: [150, 196, 232], bot: [208, 223, 233],
-               ridge1: [193, 207, 220], ridge2: [180, 196, 211],
-               towerA: [176, 190, 204], towerB: [164, 178, 194],
-               haze: [218, 226, 228], winLit: 0 },
-    dusk:    { top: [88, 76, 122], bot: [250, 166, 104],
-               ridge1: [148, 116, 138], ridge2: [126, 100, 126],
-               towerA: [128, 104, 128], towerB: [110, 92, 118],
-               haze: [244, 176, 122], winLit: 0.5,
-               sun: { x: 0.30, y: 16, r: 12, col: [255, 176, 100], glow: [252, 140, 84] } },
-    night:   { top: [10, 16, 38], bot: [40, 54, 84],
-               ridge1: [34, 46, 70], ridge2: [28, 40, 62],
-               towerA: [36, 48, 72], towerB: [30, 42, 64],
-               haze: [46, 58, 86], winLit: 0.55,
-               moon: { x: 0.62, y: 34, r: 8 } },
-  };
-  /* 雨: フラットな灰の階調。太陽・月・星は描かず、山なみ/ビル群もhaze寄りに霞ませる */
-  const RAIN = {
-    morning: { top: [150, 156, 168], bot: [196, 200, 208],
-               ridge1: [176, 178, 186], ridge2: [166, 170, 180],
-               towerA: [172, 176, 184], towerB: [162, 168, 178],
-               haze: [190, 194, 200], winLit: 0.10 },
-    day:     { top: [158, 166, 178], bot: [204, 210, 216],
-               ridge1: [182, 188, 194], ridge2: [172, 180, 188],
-               towerA: [178, 184, 192], towerB: [168, 176, 186],
-               haze: [196, 200, 206], winLit: 0 },
-    dusk:    { top: [110, 100, 118], bot: [168, 144, 138],
-               ridge1: [142, 132, 138], ridge2: [130, 122, 130],
-               towerA: [136, 126, 134], towerB: [124, 116, 128],
-               haze: [158, 144, 142], winLit: 0.35 },
-    night:   { top: [16, 20, 36], bot: [44, 52, 72],
-               ridge1: [40, 46, 64], ridge2: [34, 40, 58],
-               towerA: [42, 48, 68], towerB: [36, 44, 62],
-               haze: [50, 58, 78], winLit: 0.45 },
-  };
-  const P = (ENV.weather === "rain" ? RAIN : CLEAR)[ENV.mode];
+  GRADE_BYPASS = true;   // 空の色はモード×天気ごとに手で決める（パレットはWEATHERレジストリ）
+  const P = curWeather().sky[ENV.mode];
 
   for (let y = 0; y < h; y++) {
     const t = Math.pow(y / (h - 1), 0.85);
@@ -464,8 +496,8 @@ function buildSkyTex() {
       sh.px(x, y, [c[0] + d, c[1] + d, c[2] + d]);
     }
   }
-  /* 星（夜。雨の夜は曇っていて見えない） */
-  if (ENV.mode === "night" && ENV.weather !== "rain") {
+  /* 星（夜。曇天の夜は見えない） */
+  if (ENV.mode === "night" && curWeather().showStars) {
     for (let i = 0; i < 320; i++) {
       const x = (rng() * w) | 0, y = (rng() * (h - 60)) | 0;
       const b = 0.35 + rng() * 0.65;
@@ -572,10 +604,8 @@ function buildCloudsTex() {
   const w = 2325, h = 130;
   const sh = sheetA(w, h);
   const rng = mulberry32(424242);
-  const rain = ENV.weather === "rain";
-  const n = rain ? 18 : 13;                        // 雨は数割増し
-  const colHi = rain ? [188, 192, 200] : [246, 250, 252];
-  const colLo = rain ? [158, 163, 175] : [225, 233, 240];
+  const CW = curWeather().clouds;
+  const n = CW.n, colHi = CW.hi, colLo = CW.lo;
   for (let i = 0; i < n; i++) {
     const cx = rng() * w, cy = 8 + rng() * 100, s = 14 + rng() * 22;
     const nb = 7 + (rng() * 4 | 0);
