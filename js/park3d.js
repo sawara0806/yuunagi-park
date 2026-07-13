@@ -1002,9 +1002,11 @@ requestAnimationFrame(frame);
 
 document.getElementById("enter-btn").addEventListener("click", () => {
   const env = envFromDate(new Date());
-  if (env.season !== ENV.season || env.mode !== ENV.mode) {
+  const wetRoll = Math.random() < 0.25 ? "rain" : "clear";
+  if (env.season !== ENV.season || env.mode !== ENV.mode || wetRoll !== ENV.weather) {
     ENV.season = env.season;
     ENV.mode = env.mode;
+    ENV.weather = wetRoll;
     rebuildWorld();
   }
   document.getElementById("entrance").classList.add("closed");
@@ -1015,11 +1017,6 @@ document.getElementById("enter-btn").addEventListener("click", () => {
       AUDIO3.setOn(true);
     } catch (err) { /* 音が使えなくても入園できる */ }
   }
-});
-document.getElementById("rain-btn").addEventListener("click", () => {
-  ENV.weather = ENV.weather === "rain" ? "clear" : "rain";
-  rebuildWorld();
-  document.getElementById("rain-btn").classList.toggle("active", ENV.weather === "rain");
 });
 
 /* 検証・デバッグ用フック */
