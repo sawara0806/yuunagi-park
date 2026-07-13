@@ -586,7 +586,7 @@ document.getElementById("enter-btn").addEventListener("click", () => {
   const forced = new URLSearchParams(location.search).get("weather");
   const wetRoll = (forced === "rain" || forced === "clear")
     ? forced
-    : (Math.random() < 0.25 ? "rain" : "clear");
+    : (Math.random() < 0.05 ? "rain" : "clear");
   if (env.season !== ENV.season || env.mode !== ENV.mode || wetRoll !== ENV.weather) {
     ENV.season = env.season;
     ENV.mode = env.mode;
