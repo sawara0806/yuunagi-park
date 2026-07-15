@@ -39,7 +39,6 @@ const LAYOUT = {
       },
     },
     northSoil: { z1: -9.15 },     // 北側フェンス際の植栽帯の土（z2 は fence から導出）
-    manhole: { x: -3.2, z: 4.0 },
     fence: FENCE_R,                // 外周値（柵の壁もこれを参照）
     gate: { x1: GATE_X1, x2: GATE_X2 },      // 南の切れ目のx範囲
     gatePath: { z1: 10.0, z2: 14.2 },        // 入口前の通路

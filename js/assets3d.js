@@ -16,7 +16,6 @@ const L = {
   get BED() { return LAYOUT.ground.beds.treeBed; },
   get WBED() { return LAYOUT.ground.beds.westBed; },
   get FENCE() { return LAYOUT.ground.fence; },
-  get MANHOLE() { return LAYOUT.ground.manhole; },
   get PLAZA_R() { return LAYOUT.ground.plaza.r; },
 };
 
@@ -394,16 +393,6 @@ function buildFloorTex() {
           if (r > 7.2 && hash2(tx + 5, tz + 5) < 0.02) col = [112, 128, 76];
         }
 
-        /* マンホール */
-        const dm = Math.hypot(wx - LAYOUT.ground.manhole.x, wz - LAYOUT.ground.manhole.z);
-        if (dm < 0.48) {
-          if (dm > 0.42) col = [146, 142, 134];
-          else if (dm > 0.36) col = [104, 102, 96];
-          else {
-            col = [122, 120, 112];
-            if (((tx & 3) === 0 && (tz & 3) === 0)) col = [104, 102, 96];
-          }
-        }
         /* 落ち葉のかけら（季節で量と色が変わる。秋は木の下に積もる） */
         if (r > 0.6 && r < 9.8 && dBed > BED.r + 0.2) {
           let th = SG.leafTh;
