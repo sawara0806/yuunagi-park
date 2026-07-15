@@ -573,11 +573,106 @@ function envFromDate(d) {
   ENV.season = env.season;
   ENV.mode = env.mode;
 })();
+
+/* ============================================================
+   スプライト・ギャラリー（?gallery）
+   全オブジェクトを名前つきで拡大表示する開発用ビュー。
+   季節・時間帯・天気を切り替えるとグレーディングを反映して作り直す。
+   buildAssets() をそのまま使うので生成コードと常に同期する。
+   単体デザインを改善するときは: この画面を開く → sprXxx/texXxx を編集 →
+   リロード（HMRなしなので fetch cache:reload → location.reload）→ 即その物だけ確認。
+   ============================================================ */
+function buildGallery() {
+  document.getElementById("entrance").style.display = "none";
+  document.getElementById("screen").style.display = "none";
+  const root = document.createElement("div");
+  root.id = "gallery";
+  document.body.appendChild(root);
+
+  const SEASONS = ["spring", "summer", "autumn", "winter"];
+  const MODES = ["morning", "day", "dusk", "night"];
+  const WEATHERS = ["clear", "rain"];
+
+  /* 1つのスプライト/テクスチャを拡大タイルにする。frames があれば全フレーム並べる */
+  const tileFor = (label, obj) => {
+    const frames = obj.frames || [obj.img || obj];   // spr={img|frames}, tex=canvas
+    const fw = frames[0].width, fh = frames[0].height;
+    const scale = Math.max(1, Math.min(8, Math.floor(150 / Math.max(fw, fh)) || 1));
+    const tile = document.createElement("div");
+    tile.className = "g-tile";
+    const row = document.createElement("div");
+    row.className = "g-frames";
+    for (const fr of frames) {
+      const c = document.createElement("canvas");
+      c.className = "g-cvs";
+      c.width = fr.width * scale; c.height = fr.height * scale;
+      const cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = false;
+      cx.drawImage(fr, 0, 0, c.width, c.height);
+      row.appendChild(c);
+    }
+    tile.appendChild(row);
+    const lab = document.createElement("div");
+    lab.className = "g-label";
+    lab.textContent = `${label}  ${fw}×${fh}${scale > 1 ? " ×" + scale : ""}`;
+    tile.appendChild(lab);
+    return tile;
+  };
+
+  const grid = document.createElement("div");
+  grid.className = "g-grid";
+
+  const render = () => {
+    buildAssets();
+    grid.innerHTML = "";
+    const section = (title, entries) => {
+      const h = document.createElement("div");
+      h.className = "g-head"; h.textContent = title;
+      grid.appendChild(h);
+      for (const [name, val] of entries) {
+        if (Array.isArray(val)) val.forEach((v, i) => grid.appendChild(tileFor(`${name}[${i}]`, v)));
+        else grid.appendChild(tileFor(name, val));
+      }
+    };
+    section("スプライト（sprXxx）", Object.entries(ASSETS.spr));
+    section("テクスチャ（texXxx）", Object.entries(ASSETS.tex));
+  };
+
+  /* 季節・時間帯・天気の切り替えバー */
+  const bar = document.createElement("div");
+  bar.className = "g-bar";
+  const group = (labelText, values, get, set) => {
+    const b = document.createElement("b"); b.textContent = labelText; bar.appendChild(b);
+    const btns = values.map(v => {
+      const btn = document.createElement("button");
+      btn.textContent = v;
+      btn.onclick = () => { set(v); render(); sync(); };
+      bar.appendChild(btn);
+      return [v, btn];
+    });
+    return () => btns.forEach(([v, btn]) => btn.classList.toggle("on", get() === v));
+  };
+  const syncers = [
+    group("季節", SEASONS, () => ENV.season, v => ENV.season = v),
+    group("時間", MODES, () => ENV.mode, v => ENV.mode = v),
+    group("天気", WEATHERS, () => ENV.weather, v => ENV.weather = v),
+  ];
+  const sync = () => syncers.forEach(s => s());
+
+  root.appendChild(bar);
+  root.appendChild(grid);
+  render();
+  sync();
+}
 R3.init(screenCvs);
-rebuildWorld();
-fitScreen();
-last = performance.now();
-requestAnimationFrame(frame);
+if (new URLSearchParams(location.search).has("gallery")) {
+  buildGallery();          // ?gallery: 3D公園ではなく単体スプライトの一覧を出す
+} else {
+  rebuildWorld();
+  fitScreen();
+  last = performance.now();
+  requestAnimationFrame(frame);
+}
 
 document.getElementById("enter-btn").addEventListener("click", () => {
   const env = envFromDate(new Date());

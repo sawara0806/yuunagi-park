@@ -78,6 +78,37 @@ body {
 }
 body.force-rotate #rotate { display: flex; }
 
+/* ---- スプライト・ギャラリー（?gallery のときだけ。単体デザイン改善用のデバッグビュー） ---- */
+#gallery {
+  position: fixed; inset: 0; z-index: 50; overflow-y: auto;
+  background: #3a3f45; color: #e8e4d8;
+  font-family: inherit; padding: 12px 16px 60px;
+}
+#gallery .g-bar {
+  position: sticky; top: 0; z-index: 2; margin: -12px -16px 14px; padding: 10px 16px;
+  background: rgba(26, 30, 36, .96); display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+#gallery .g-bar b { font-size: .8rem; opacity: .6; margin: 0 4px 0 10px; letter-spacing: .1em; }
+#gallery .g-bar button {
+  font-family: inherit; font-size: .72rem; color: #e8e4d8; letter-spacing: .06em;
+  background: rgba(240, 237, 226, .1); border: 1px solid rgba(240, 237, 226, .3);
+  border-radius: 3px; padding: .35em .8em; cursor: pointer;
+}
+#gallery .g-bar button.on { background: #e8e4d8; color: #1c2434; border-color: #e8e4d8; }
+#gallery .g-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+#gallery .g-tile {
+  background:
+    linear-gradient(45deg, rgba(0,0,0,.14) 25%, transparent 25%, transparent 75%, rgba(0,0,0,.14) 75%) 0 0/16px 16px,
+    linear-gradient(45deg, rgba(0,0,0,.14) 25%, transparent 25%, transparent 75%, rgba(0,0,0,.14) 75%) 8px 8px/16px 16px,
+    #6b7178;
+  border: 1px solid rgba(0,0,0,.3); border-radius: 3px; padding: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+#gallery .g-frames { display: flex; gap: 6px; align-items: flex-end; }
+#gallery .g-cvs { image-rendering: pixelated; image-rendering: crisp-edges; }
+#gallery .g-label { font-size: .66rem; letter-spacing: .04em; opacity: .82; text-align: center; }
+#gallery .g-head { width: 100%; font-size: .78rem; letter-spacing: .12em; opacity: .55; margin: 8px 0 2px; }
+
 /* ---- ヒント ---- */
 #hint {
   position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 15;
