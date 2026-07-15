@@ -1059,22 +1059,63 @@ function buildCrownFrame(sh, blobs, frame, pal, seedN) {
       else if (rel > 0.74 && ((x + y) & 1)) c = pal.dark;
       sh.px(x, y, c);
     }
-  /* 塊ごとの帽子（明）と под（暗）で、もこもこした立体感 */
-  const dab = (bx, by, r, col, chance) => {
-    for (let y = (by - r) | 0; y <= by + r; y++)
+  /* 立体的な雲状puff（参考画像に寄せて強コントラスト）。光は左上（公園の陽＝北西）。
+     最下部に深い影→区切りの影→上半分の明部→締めた帽子→てっぺんの反射、と重ね、
+     最後に樹冠全体の上端へ陽の当たるリムを足す。 */
+  const deep = [pal.dark[0] * 0.8, pal.dark[1] * 0.8, pal.dark[2] * 0.82];
+  const dab = (bx, by, rx, ry, col, chance) => {
+    for (let y = (by - ry) | 0; y <= by + ry; y++)
+      for (let x = (bx - rx) | 0; x <= bx + rx; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H || mask[y * W + x] !== 1) continue;
+        if (Math.hypot((x - bx) / rx, (y - by) / ry) > 1) continue;
+        if (hash2(x * 5 + seedN, y * 5) > chance) continue;
+        sh.px(x, y, col);
+      }
+  };
+  /* 塊の下半分の外縁だけに影を敷く（＝puffの区切りになる三日月） */
+  const crescent = (bx, by, r, col, chance) => {
+    for (let y = by | 0; y <= by + r; y++)
       for (let x = (bx - r) | 0; x <= bx + r; x++) {
         if (x < 0 || y < 0 || x >= W || y >= H || mask[y * W + x] !== 1) continue;
-        if (Math.hypot(x - bx, (y - by) * 1.2) > r) continue;
-        if (hash2(x * 5 + seedN, y * 5) > chance) continue;
+        const d = Math.hypot((x - bx) / 1.05, y - by);
+        if (d < r * 0.52 || d > r) continue;
+        if (hash2(x * 5 + seedN, y * 9) > chance) continue;
         sh.px(x, y, col);
       }
   };
   for (const b of blobs) {
     const dx = Math.round(Math.sin(b.ph + frame * 2.1) * b.sway);
-    dab(b.x + dx - b.r * 0.22, b.y - b.r * 0.38, b.r * 0.62, pal.light, 0.75);
-    dab(b.x + dx - b.r * 0.34, b.y - b.r * 0.5, b.r * 0.36, pal.hi, 0.55);
-    dab(b.x + dx + b.r * 0.2, b.y + b.r * 0.48, b.r * 0.55, pal.dark, 0.6);
+    const bx = b.x + dx, by = b.y, r = b.r;
+    crescent(bx + r * 0.18, by + r * 0.18, r * 1.0, deep, 0.9);              // 最下部の深い影
+    crescent(bx + r * 0.12, by + r * 0.04, r * 0.9, pal.dark, 0.95);         // 区切りの影
+    dab(bx - r * 0.14, by - r * 0.24, r * 0.74, r * 0.66, pal.light, 0.92);  // 上半分の明部
+    dab(bx - r * 0.30, by - r * 0.42, r * 0.46, r * 0.42, pal.hi, 0.9);      // 締めた帽子
+    if (r > 14) dab(bx - r * 0.36, by - r * 0.52, r * 0.24, r * 0.20, pal.hi, 1.0); // てっぺんの反射
   }
+  /* 枝が花の隙間から透ける: 下中央から扇状に暗い枝を数本、樹冠の中だけディザで通す */
+  const branchCol = [66, 54, 46];
+  const trunkX = W / 2;
+  for (let i = 0; i < 5; i++) {
+    const ang = -1.5708 + (i - 2) * 0.42 + (hash2(i + seedN, 1) - 0.5) * 0.2;  // 上向き扇
+    let bx = trunkX + (hash2(i, seedN) - 0.5) * 6, by = bot - 2;
+    for (let s = 0; s < H * 0.52; s++) {
+      bx += Math.cos(ang); by += Math.sin(ang);
+      const xi = bx | 0, yi = by | 0;
+      if (xi < 1 || yi < 0 || xi >= W - 1 || yi >= H) break;
+      if (mask[yi * W + xi] !== 1) continue;                    // 樹冠の中だけ
+      if (hash2(xi * 3 + seedN, yi * 3) < 0.62) {               // ディザで glimpse
+        sh.px(xi, yi, branchCol);
+        if (hash2(xi * 5, yi * 5 + seedN) < 0.4) sh.px(xi + 1, yi, branchCol);
+      }
+    }
+  }
+  /* 樹冠上端の陽の当たるリム（各列のいちばん上の葉をハイライト） */
+  for (let x = 0; x < W; x++)
+    for (let y = 0; y < H; y++) {
+      if (mask[y * W + x] !== 1) continue;
+      if (hash2(x * 11 + seedN, 3) < 0.6) sh.px(x, y, pal.hi);
+      break;
+    }
   return mask;
 }
 
@@ -1088,12 +1129,12 @@ function sprKusunoki(seed) {
   /* 樹冠の塊（多数・強く重ねる） */
   const cyC = H * 0.33, rxC = W * 0.44, ryC = H * 0.28;
   const blobs = [];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 16; i++) {
     const a = rng() * 6.283, rr = Math.sqrt(rng());
     const bx = cx + Math.cos(a) * rxC * rr * 0.82;
     const by = cyC + Math.sin(a) * ryC * rr * 0.82;
     const edge = rr;                                   // 外側ほど揺れる
-    blobs.push({ x: bx, y: Math.max(18, by), r: 17 + rng() * 13, ph: rng() * 6.283, sway: 0.6 + edge * 1.6 });
+    blobs.push({ x: bx, y: Math.max(20, by), r: 23 + rng() * 16, ph: rng() * 6.283, sway: 0.6 + edge * 1.6 });
   }
   const frames = [0, 1, 2].map(f => {
     const sh = sheetA(W, H);
@@ -1150,15 +1191,15 @@ function sprKeyaki(seed, palOverride) {
   }
   const blobs = [];
   for (const l of limbs) {
-    for (const t of [0.4, 0.62, 0.82, 1.0]) {
+    for (const t of [0.45, 0.72, 1.0]) {
       const bx = cx + Math.cos(l.a) * l.len * t;
       const by = splitY + Math.sin(l.a) * l.len * t;
-      blobs.push({ x: bx, y: Math.max(14, by), r: (12 + t * 9) * (0.85 + rng() * 0.3),
+      blobs.push({ x: bx, y: Math.max(14, by), r: (16 + t * 12) * (0.85 + rng() * 0.3),
                    ph: rng() * 6.283, sway: 0.5 + t * 1.7 });
     }
   }
-  blobs.push({ x: cx, y: splitY - H * 0.26, r: 16, ph: rng() * 6.283, sway: 1 });
-  blobs.push({ x: cx, y: splitY - H * 0.12, r: 14, ph: rng() * 6.283, sway: 0.8 });
+  blobs.push({ x: cx, y: splitY - H * 0.28, r: 21, ph: rng() * 6.283, sway: 1 });
+  blobs.push({ x: cx, y: splitY - H * 0.12, r: 18, ph: rng() * 6.283, sway: 0.8 });
   const frames = [0, 1, 2].map(f => {
     const sh = sheetA(W, H);
     /* 幹と株立ちの大枝（先に描いて樹冠を上に被せる） */
