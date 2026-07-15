@@ -1042,78 +1042,47 @@ function buildCrownFrame(sh, blobs, frame, pal, seedN) {
                    !mask[(y - 1) * W + x] || !mask[(y + 1) * W + x];
       if (edge && hash2(x * 7 + frame, y * 7 + seedN) < 0.30) mask[y * W + x] = 2; // 後で消す
     }
-  /* 基本色で塗る */
-  let top = H, bot = 0;
+  /* 明暗は「樹冠全体で1つのボリューム」として付ける（塊ごとに帽子＋下影を付けると
+     風船の集合＝球体感が出るので避ける）。光は左上。上・左ほど明るいトーンへ量子化し、
+     塊の重なりの下縁にだけ薄い区切り影を足して、もこもこ感だけ残す。 */
+  const deep = [pal.dark[0] * 0.82, pal.dark[1] * 0.82, pal.dark[2] * 0.84];
+  const tones = [deep, pal.dark, pal.mid, pal.light, pal.hi];   // 暗→明
+  let top = H, bot = 0, left = W, right = 0;
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (mask[y * W + x] !== 1) continue;
-      if (y < top) top = y;
-      if (y > bot) bot = y;
+      if (y < top) top = y; if (y > bot) bot = y;
+      if (x < left) left = x; if (x > right) right = x;
     }
+  const hgt = Math.max(1, bot - top), wid = Math.max(1, right - left);
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (mask[y * W + x] !== 1) continue;
-      const rel = (y - top) / Math.max(1, bot - top);
-      let c = pal.mid;
-      if (rel > 0.82) c = pal.dark;
-      else if (rel > 0.74 && ((x + y) & 1)) c = pal.dark;
-      sh.px(x, y, c);
+      const vy = (y - top) / hgt, vx = (x - left) / wid;         // 0=上/左, 1=下/右
+      const L = 1 - (vy * 0.64 + vx * 0.28) + (hash2(x * 3 + seedN, y * 3) - 0.5) * 0.16;
+      sh.px(x, y, tones[L > 0.74 ? 4 : L > 0.55 ? 3 : L > 0.34 ? 2 : L > 0.17 ? 1 : 0]);
     }
-  /* 立体的な雲状puff（参考画像に寄せて強コントラスト）。光は左上（公園の陽＝北西）。
-     最下部に深い影→区切りの影→上半分の明部→締めた帽子→てっぺんの反射、と重ね、
-     最後に樹冠全体の上端へ陽の当たるリムを足す。 */
-  const deep = [pal.dark[0] * 0.8, pal.dark[1] * 0.8, pal.dark[2] * 0.82];
-  const dab = (bx, by, rx, ry, col, chance) => {
-    for (let y = (by - ry) | 0; y <= by + ry; y++)
-      for (let x = (bx - rx) | 0; x <= bx + rx; x++) {
-        if (x < 0 || y < 0 || x >= W || y >= H || mask[y * W + x] !== 1) continue;
-        if (Math.hypot((x - bx) / rx, (y - by) / ry) > 1) continue;
-        if (hash2(x * 5 + seedN, y * 5) > chance) continue;
-        sh.px(x, y, col);
-      }
-  };
-  /* 塊の下半分の外縁だけに影を敷く（＝puffの区切りになる三日月） */
-  const crescent = (bx, by, r, col, chance) => {
+  /* 塊の重なりの下縁だけ、薄く1段暗い影を敷いて“もこもこ”の区切りを示す
+     （帽子ハイライトは付けない＝球体に見せない）。上寄りの塊ほど効かせる */
+  for (const b of blobs) {
+    const dx = Math.round(Math.sin(b.ph + frame * 2.1) * b.sway);
+    const bx = b.x + dx, by = b.y, r = b.r;
+    const vv = (by - top) / hgt;                                  // 上の塊ほど区切りを効かせる
+    const col = vv < 0.4 ? pal.mid : pal.dark;
     for (let y = by | 0; y <= by + r; y++)
       for (let x = (bx - r) | 0; x <= bx + r; x++) {
         if (x < 0 || y < 0 || x >= W || y >= H || mask[y * W + x] !== 1) continue;
         const d = Math.hypot((x - bx) / 1.05, y - by);
-        if (d < r * 0.52 || d > r) continue;
-        if (hash2(x * 5 + seedN, y * 9) > chance) continue;
+        if (d < r * 0.66 || d > r) continue;                     // 下縁の細い帯だけ
+        if (hash2(x * 5 + seedN, y * 9) > 0.4) continue;
         sh.px(x, y, col);
       }
-  };
-  for (const b of blobs) {
-    const dx = Math.round(Math.sin(b.ph + frame * 2.1) * b.sway);
-    const bx = b.x + dx, by = b.y, r = b.r;
-    crescent(bx + r * 0.18, by + r * 0.18, r * 1.0, deep, 0.9);              // 最下部の深い影
-    crescent(bx + r * 0.12, by + r * 0.04, r * 0.9, pal.dark, 0.95);         // 区切りの影
-    dab(bx - r * 0.14, by - r * 0.24, r * 0.74, r * 0.66, pal.light, 0.92);  // 上半分の明部
-    dab(bx - r * 0.30, by - r * 0.42, r * 0.46, r * 0.42, pal.hi, 0.9);      // 締めた帽子
-    if (r > 14) dab(bx - r * 0.36, by - r * 0.52, r * 0.24, r * 0.20, pal.hi, 1.0); // てっぺんの反射
   }
-  /* 枝が花の隙間から透ける: 下中央から扇状に暗い枝を数本、樹冠の中だけディザで通す */
-  const branchCol = [66, 54, 46];
-  const trunkX = W / 2;
-  for (let i = 0; i < 5; i++) {
-    const ang = -1.5708 + (i - 2) * 0.42 + (hash2(i + seedN, 1) - 0.5) * 0.2;  // 上向き扇
-    let bx = trunkX + (hash2(i, seedN) - 0.5) * 6, by = bot - 2;
-    for (let s = 0; s < H * 0.52; s++) {
-      bx += Math.cos(ang); by += Math.sin(ang);
-      const xi = bx | 0, yi = by | 0;
-      if (xi < 1 || yi < 0 || xi >= W - 1 || yi >= H) break;
-      if (mask[yi * W + xi] !== 1) continue;                    // 樹冠の中だけ
-      if (hash2(xi * 3 + seedN, yi * 3) < 0.62) {               // ディザで glimpse
-        sh.px(xi, yi, branchCol);
-        if (hash2(xi * 5, yi * 5 + seedN) < 0.4) sh.px(xi + 1, yi, branchCol);
-      }
-    }
-  }
-  /* 樹冠上端の陽の当たるリム（各列のいちばん上の葉をハイライト） */
+  /* 樹冠上端の陽の当たるリム（各列のいちばん上の葉を控えめにハイライト） */
   for (let x = 0; x < W; x++)
     for (let y = 0; y < H; y++) {
       if (mask[y * W + x] !== 1) continue;
-      if (hash2(x * 11 + seedN, 3) < 0.6) sh.px(x, y, pal.hi);
+      if (hash2(x * 11 + seedN, 3) < 0.42) sh.px(x, y, pal.hi);
       break;
     }
   return mask;
