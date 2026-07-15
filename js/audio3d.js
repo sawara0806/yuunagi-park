@@ -242,13 +242,14 @@ const AUDIO3 = {
     const c = this.ctx, t0 = c.currentTime;
     const s = c.createBufferSource(); s.buffer = this.noiseBuf;
     s.playbackRate.value = 0.85 + Math.random() * 0.3;
-    const onBrick = Math.hypot(CAM.x, CAM.z) < L.PLAZA_R;
+    /* 広場は砂地なので鈍く柔らかい踏み音、園外の平板は硬く高い音 */
+    const onSand = Math.hypot(CAM.x, CAM.z) < L.PLAZA_R;
     const bp = c.createBiquadFilter(); bp.type = "bandpass";
-    bp.frequency.value = (onBrick ? 850 : 1150) + Math.random() * 250;
-    bp.Q.value = 1.0;
+    bp.frequency.value = (onSand ? 520 : 1150) + Math.random() * 200;
+    bp.Q.value = onSand ? 0.6 : 1.0;
     const g = c.createGain();
-    g.gain.setValueAtTime(0.03, t0);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    g.gain.setValueAtTime(onSand ? 0.022 : 0.03, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + (onSand ? 0.06 : 0.08));
     s.connect(bp).connect(g).connect(this.master);
     s.start(t0); s.stop(t0 + 0.1);
   },
