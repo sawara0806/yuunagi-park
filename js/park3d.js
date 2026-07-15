@@ -595,6 +595,13 @@ document.getElementById("enter-btn").addEventListener("click", () => {
   }
   document.getElementById("entrance").classList.add("closed");
   INSIDE = true;
+  /* タッチ端末では入園タップ（ユーザー操作）を機に全画面化して没入させる。
+     iOS等の未対応・拒否は握りつぶす（園内にボタンは足さない） */
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    const el = document.documentElement;
+    const rfs = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (rfs) { const p = rfs.call(el); if (p && p.catch) p.catch(() => {}); }
+  }
   if (document.getElementById("sound-check").checked) {
     try {
       AUDIO3.init();
