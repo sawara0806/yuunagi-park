@@ -242,8 +242,8 @@ const AUDIO3 = {
     const c = this.ctx, t0 = c.currentTime;
     const s = c.createBufferSource(); s.buffer = this.noiseBuf;
     s.playbackRate.value = 0.85 + Math.random() * 0.3;
-    /* 広場は砂地なので鈍く柔らかい踏み音、園外の平板は硬く高い音 */
-    const onSand = Math.hypot(CAM.x, CAM.z) < L.PLAZA_R;
+    /* 園内は一面の砂地なので鈍く柔らかい踏み音、園外（門の外の平板）は硬く高い音 */
+    const onSand = Math.max(Math.abs(CAM.x), Math.abs(CAM.z)) < 10;
     const bp = c.createBiquadFilter(); bp.type = "bandpass";
     bp.frequency.value = (onSand ? 520 : 1150) + Math.random() * 200;
     bp.Q.value = onSand ? 0.6 : 1.0;

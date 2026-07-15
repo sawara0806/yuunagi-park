@@ -375,39 +375,23 @@ function buildFloorTex() {
           /* 北側フェンス際の植栽帯の土 */
           const t = 98 + (n - 0.5) * 20;
           col = [t + 4, t - 12, t - 32];
-        } else if (r < LAYOUT.ground.plaza.r) {
-          /* --- 踏み固めた砂地（日本の児童公園の土グラウンド。真砂土の暖かい黄土色） --- */
-          const patch = hash2((tx >> 3) + 11, (tz >> 3) + 11);   // 低周波のむら
-          const mott = (patch - 0.5) * 24;                       // 踏み固めの暗部／乾いた明部
-          const g = (n - 0.5) * 14;                              // 砂粒のざらつき
-          col = [186 + mott + g, 168 + mott + g * 0.9, 134 + mott * 0.8 + g * 0.6];
-          if (n > 0.975) {                                       // 小石・砂利
-            const s = 150 + (hash2(tx + 9, tz + 9) - 0.5) * 26;
-            col = [s, s - 5, s - 14];
-          } else if (n < 0.018) {                                // 乾いた白っぽい砂粒
-            col = [210, 198, 172];
-          }
-          if (patch < 0.08) col = [col[0] - 16, col[1] - 15, col[2] - 13]; // 締まった土の窪み
-          /* 外周寄りにまばらな雑草（縁石ぎわに生える） */
-          if (r > 3.4 && hash2(tx + 5, tz + 5) < 0.018) col = [110, 128, 74];
-        } else if (r < 6.02) {
-          /* 縁石リング */
-          col = [172, 168, 158];
-          const arc = (Math.atan2(wz, wx) + Math.PI) * 5.85;
-          if (arc % 1.2 < 0.07) col = [142, 138, 128];
         } else {
-          /* --- コンクリート平板 (1m角) --- */
-          const tileT = 182 + (hash2(Math.floor(wx) + 60, Math.floor(wz) + 60) - 0.5) * 17;
-          const t = tileT + (n - 0.5) * 7;
-          col = [t + 4, t, t - 9];
-          const fx = wx - Math.floor(wx), fz = wz - Math.floor(wz);
-          if (fx < 0.045 || fz < 0.045) {
-            col = [151, 147, 137];
-            /* 目地に生える草 */
-            if (n < 0.07) col = SG.joint;
+          /* --- 園内の地面は花壇以外すべて砂利まじりの土（実写準拠のグレージュ）。
+             乾いた真砂土＋砂利。低周波の明暗むら＋砂粒ノイズ＋灰色の小石。
+             コンクリ広場/平板/縁石リングは廃し、境界なく一面の砂に統一 --- */
+          const patch = hash2((tx >> 3) + 11, (tz >> 3) + 11);   // 低周波の明暗むら
+          const mott = (patch - 0.5) * 26;
+          const g = (n - 0.5) * 15;                              // 砂粒のざらつき
+          col = [172 + mott + g, 168 + mott + g, 155 + mott * 0.9 + g * 0.8];
+          if (n > 0.968) {                                       // 灰色の小石・砂利
+            const s = 150 + (hash2(tx + 9, tz + 9) - 0.5) * 30;
+            col = [s + 2, s + 1, s - 5];
+          } else if (n < 0.02) {                                 // 乾いた白っぽい部分
+            col = [201, 198, 189];
           }
-          if (hash2(Math.floor(wx) + 9, Math.floor(wz) + 9) < 0.05) // 汚れたタイル
-            col = [t - 13, t - 15, t - 20];
+          if (patch < 0.08) col = [col[0] - 14, col[1] - 14, col[2] - 12]; // 締まった土の窪み
+          /* 外周ぎわにまばらな雑草 */
+          if (r > 7.2 && hash2(tx + 5, tz + 5) < 0.02) col = [112, 128, 76];
         }
 
         /* マンホール */
