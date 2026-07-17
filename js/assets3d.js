@@ -1010,6 +1010,13 @@ const LEAF_PAL = {
 };
 function buildCrownFrame(sh, blobs, frame, pal, seedN) {
   const W = sh.w, H = sh.h;
+  /* 各塊をキャンバス内に収める（左右・上端が縁で平らに切れるのを防ぐ。sway揺れの余裕込み）。
+     複数フレームで呼ばれるが範囲内なら冪等 */
+  for (const b of blobs) {
+    const m = b.r * 1.12 + Math.abs(b.sway) + 2;
+    if (m < W - m) b.x = Math.max(m, Math.min(W - m, b.x));
+    b.y = Math.max(b.r + Math.abs(b.sway) + 2, b.y);
+  }
   const mask = new Uint8Array(W * H);
   const put = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) mask[y * W + x] = 1; };
   for (const b of blobs) {
@@ -1096,14 +1103,16 @@ function sprKusunoki(seed) {
   const cx = W / 2;
   const pal = LEAF_PAL.kusu[ENV.season];
   /* 樹冠の塊（多数・強く重ねる） */
-  const cyC = H * 0.33, rxC = W * 0.44, ryC = H * 0.28;
+  const cyC = H * 0.34, rxC = W * 0.40, ryC = H * 0.26;
   const blobs = [];
-  for (let i = 0; i < 16; i++) {
+  /* 塊を多めに敷いて外周リングを連続させる（少ないと外側の塊が孤立して浮く）。
+     外側だけ僅かに小さくして輪郭を丸く。 */
+  for (let i = 0; i < 28; i++) {
     const a = rng() * 6.283, rr = Math.sqrt(rng());
-    const bx = cx + Math.cos(a) * rxC * rr * 0.82;
-    const by = cyC + Math.sin(a) * ryC * rr * 0.82;
-    const edge = rr;                                   // 外側ほど揺れる
-    blobs.push({ x: bx, y: Math.max(20, by), r: 23 + rng() * 16, ph: rng() * 6.283, sway: 0.6 + edge * 1.6 });
+    const bx = cx + Math.cos(a) * rxC * rr;
+    const by = cyC + Math.sin(a) * ryC * rr;
+    const r = (17 + rng() * 12) * (1 - rr * 0.18);
+    blobs.push({ x: bx, y: Math.max(20, by), r, ph: rng() * 6.283, sway: 0.6 + rr * 1.4 });
   }
   const frames = [0, 1, 2].map(f => {
     const sh = sheetA(W, H);
@@ -1160,15 +1169,15 @@ function sprKeyaki(seed, palOverride) {
   }
   const blobs = [];
   for (const l of limbs) {
-    for (const t of [0.45, 0.72, 1.0]) {
+    for (const t of [0.4, 0.6, 0.8, 1.0]) {
       const bx = cx + Math.cos(l.a) * l.len * t;
       const by = splitY + Math.sin(l.a) * l.len * t;
-      blobs.push({ x: bx, y: Math.max(14, by), r: (16 + t * 12) * (0.85 + rng() * 0.3),
+      blobs.push({ x: bx, y: Math.max(14, by), r: (15 + t * 9) * (0.85 + rng() * 0.3),
                    ph: rng() * 6.283, sway: 0.5 + t * 1.7 });
     }
   }
-  blobs.push({ x: cx, y: splitY - H * 0.28, r: 21, ph: rng() * 6.283, sway: 1 });
-  blobs.push({ x: cx, y: splitY - H * 0.12, r: 18, ph: rng() * 6.283, sway: 0.8 });
+  blobs.push({ x: cx, y: splitY - H * 0.28, r: 20, ph: rng() * 6.283, sway: 1 });
+  blobs.push({ x: cx, y: splitY - H * 0.12, r: 17, ph: rng() * 6.283, sway: 0.8 });
   const frames = [0, 1, 2].map(f => {
     const sh = sheetA(W, H);
     /* 幹と株立ちの大枝（先に描いて樹冠を上に被せる） */
