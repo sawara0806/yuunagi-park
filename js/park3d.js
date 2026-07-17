@@ -448,7 +448,7 @@ function updateAnim(dt) {
   /* 木々: 風が強いほど葉群が速くそよぐ（最大でも穏やかに。速すぎると落ち着かない） */
   for (const s of SPRITES3) {
     if (s.frames && s.ph !== undefined)
-      s.img = s.frames[FRAME_SEQ[((simT * (0.55 + wind * 0.8) + s.ph) | 0) % 4]];
+      s.img = s.frames[FRAME_SEQ[((simT * (0.6 + wind * 1.2) + s.ph) | 0) % 4]];
   }
   /* 鳩: ときどき地面をついばむ */
   for (const p of PIGEONS) {
