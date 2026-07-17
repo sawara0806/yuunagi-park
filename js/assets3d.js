@@ -1103,16 +1103,17 @@ function sprKusunoki(seed) {
   const cx = W / 2;
   const pal = LEAF_PAL.kusu[ENV.season];
   /* 樹冠の塊（多数・強く重ねる） */
-  const cyC = H * 0.34, rxC = W * 0.40, ryC = H * 0.26;
+  /* 塊は「狭い範囲に密集」させ、重なりで1つのまとまった樹冠（こんもりドーム）にする。
+     広げると別々の茂みに散って見える（=散らばりすぎ）。配置楕円を塊半径よりかなり
+     小さくとり、半径は大きめ・均一めにして union が一塊の丸い輪郭になるようにする。 */
+  const cyC = H * 0.32, rxC = W * 0.28, ryC = H * 0.185;
   const blobs = [];
-  /* 塊を多めに敷いて外周リングを連続させる（少ないと外側の塊が孤立して浮く）。
-     外側だけ僅かに小さくして輪郭を丸く。 */
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 24; i++) {
     const a = rng() * 6.283, rr = Math.sqrt(rng());
     const bx = cx + Math.cos(a) * rxC * rr;
     const by = cyC + Math.sin(a) * ryC * rr;
-    const r = (17 + rng() * 12) * (1 - rr * 0.18);
-    blobs.push({ x: bx, y: Math.max(20, by), r, ph: rng() * 6.283, sway: 0.6 + rr * 1.4 });
+    const r = 24 + rng() * 8;
+    blobs.push({ x: bx, y: Math.max(20, by), r, ph: rng() * 6.283, sway: 0.5 + rr * 1.1 });
   }
   const frames = [0, 1, 2].map(f => {
     const sh = sheetA(W, H);
